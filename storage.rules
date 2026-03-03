@@ -1,0 +1,46 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isValidImage() {
+      return request.resource.size < 5 * 1024 * 1024 && // 5MB max
+             request.resource.contentType.matches('image/.*');
+    }
+    
+    // Images folder
+    match /images/{userId}/{fileName} {
+      allow read: if true; // Public read
+      allow write: if isAuthenticated() && 
+                     isOwner(userId) && 
+                     isValidImage();
+      allow delete: if isAuthenticated() && isOwner(userId);
+    }
+    
+    // Campaign images
+    match /campaigns/{userId}/{fileName} {
+      allow read: if true; // Public read
+      allow write: if isAuthenticated() && 
+                     isOwner(userId) && 
+                     isValidImage();
+      allow delete: if isAuthenticated() && isOwner(userId);
+    }
+    
+    // Profile images
+    match /profiles/{userId}/{fileName} {
+      allow read: if true; // Public read
+      allow write: if isAuthenticated() && 
+                     isOwner(userId) && 
+                     isValidImage();
+      allow delete: if isAuthenticated() && isOwner(userId);
+    }
+  }
+}

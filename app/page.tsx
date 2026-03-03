@@ -1,65 +1,145 @@
-import Image from "next/image";
+'use client';
+
+import { motion } from 'framer-motion';
+import Link from 'next/link';
 
 export default function Home() {
+  const cards = [
+    {
+      href: '/client',
+      icon: '📱',
+      title: 'Interface Client',
+      description: 'Découvrez des deals à prix cassés avec des réductions jusqu\'à -70%. Achetez vos produits préférés en quelques clics.',
+    },
+    {
+      href: '/vendeur',
+      icon: '🏪',
+      title: 'Interface Vendeur',
+      description: 'Créez des campagnes flash pour écouler vos stocks rapidement. Boostez vos ventes en 24-48h.',
+    },
+    {
+      href: '/admin',
+      icon: '🔐',
+      title: 'Interface Admin',
+      description: 'Gérez la plateforme, modérez les campagnes et suivez les performances en temps réel.',
+    },
+  ];
+
+  const features = [
+    { icon: '⚡', title: 'Deals Flash 24-48h', description: 'Campagnes limitées dans le temps avec stock visible en temps réel' },
+    { icon: '💰', title: 'Réductions Massives', description: 'Économisez jusqu\'à 70% sur vos produits préférés' },
+    { icon: '📊', title: 'Dashboard Vendeur', description: 'Suivez vos ventes et performances en temps réel' },
+    { icon: '🚚', title: 'Livraison Rapide', description: 'Livraison à Douala et Yaoundé sous 24-48h' },
+    { icon: '📱', title: 'Mobile Money', description: 'Paiement sécurisé via MTN et Orange Money' },
+    { icon: '🔒', title: 'Sécurisé', description: 'Transactions protégées et données cryptées' },
+  ];
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-gradient-to-br from-black to-[#1a0a00] text-white flex items-center justify-center p-5">
+      <div className="max-w-[1200px] w-full">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-center mb-15"
+        >
+          <div className="text-6xl mb-5  ">🔥</div>
+          <h1 className="text-5xl mb-4 bg-gradient-to-r from-orange to-red bg-clip-text text-transparent font-bold">
+            Flash Deals Cameroun
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-xl text-gray-medium  ">
+            Plateforme E-commerce de Deals Flash
           </p>
+        </motion.div>
+
+        {/* Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-15">
+          {cards.map((card, index) => (
+            <motion.div
+              key={card.href}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: index * 0.1 }}
+            >
+              <Link href={card.href}>
+                <motion.div
+                  whileHover={{ y: -8, borderColor: '#FF6600', boxShadow: '0 12px 40px rgba(255, 102, 0, 0.3)' }}
+                  className="bg-gradient-to-br from-bg-medium to-bg-dark border-2 border-[#333] rounded-2xl p-10 text-center cursor-pointer transition-all duration-300"
+                >
+                  <div className="text-[80px] mb-6">{card.icon}</div>
+                  <h2 className="text-[28px] font-bold mb-3">{card.title}</h2>
+                  <p className="text-base text-gray-medium mb-6 leading-relaxed">
+                    {card.description}
+                  </p>
+                  <motion.div
+                    whileHover={{ scale: 1.05 }}
+                    className="inline-block bg-orange text-white px-8 py-3.5 rounded-lg font-semibold text-base"
+                  >
+                    Accéder →
+                  </motion.div>
+                </motion.div>
+              </Link>
+            </motion.div>
+          ))}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+
+        {/* Features */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+          className="bg-bg-medium border border-[#333] rounded-2xl p-10 mb-10"
+        >
+          <h2 className="text-[32px] mb-8 text-center text-orange">
+            ✨ Fonctionnalités Principales
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {features.map((feature, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.4, delay: 0.5 + index * 0.1 }}
+                className="flex items-start gap-4"
+              >
+                <div className="text-[32px] flex-shrink-0">{feature.icon}</div>
+                <div>
+                  <h3 className="text-lg mb-2 font-semibold">{feature.title}</h3>
+                  <p className="text-sm text-gray-medium leading-relaxed">
+                    {feature.description}
+                  </p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Footer */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.6 }}
+          className="text-center pt-10 border-t border-[#333] text-gray-dark"
+        >
+          <div className="flex justify-center gap-8 mb-6 flex-wrap">
+            <a href="/doc" className="text-gray-medium hover:text-orange transition-colors">
+              📖 Documentation
+            </a>
+            <a href="#" className="text-gray-medium hover:text-orange transition-colors">
+              🚀 Guide de démarrage
+            </a>
+            <a href="#" className="text-gray-medium hover:text-orange transition-colors">
+              💡 À propos
+            </a>
+            <a href="#" className="text-gray-medium hover:text-orange transition-colors">
+              📞 Contact
+            </a>
+          </div>
+          <p>© 2026 Flash Deals Cameroun - Tous droits réservés</p>
+          <p className="mt-2 text-xs">Version 1.0.0 - Prototype de démonstration</p>
+        </motion.div>
+      </div>
     </div>
   );
 }
