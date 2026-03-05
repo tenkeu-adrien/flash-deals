@@ -1,77 +1,201 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
+import { updateUserProfile } from '@/lib/firebase/auth';
+import { useClientStore } from '@/lib/stores/clientStore';
 
 interface ProfileSetupPageProps {
   onNavigate: (page: string) => void;
 }
 
 export default function ProfileSetupPage({ onNavigate }: ProfileSetupPageProps) {
-  const [preferences, setPreferences] = useState<string[]>([]);
+  const [displayName, setDisplayName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [city, setCity] = useState('');
+  const [region, setRegion] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { setCurrentPage } = useClientStore();
 
-  const categories = [
-    { id: 'tech', icon: '📱', label: 'High-Tech' },
-    { id: 'fashion', icon: '👗', label: 'Mode' },
-    { id: 'home', icon: '🏠', label: 'Maison' },
-    { id: 'beauty', icon: '💄', label: 'Beauté' },
-    { id: 'sports', icon: '⚽', label: 'Sports' },
-    { id: 'food', icon: '🍔', label: 'Alimentation' },
-  ];
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
 
-  const togglePreference = (id: string) => {
-    setPreferences(prev =>
-      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
-    );
+    const result = await updateUserProfile({
+      displayName,
+      phoneNumber: phone,
+      address: {
+        city,
+        region
+      }
+    });
+
+    if (result.success) {
+      setCurrentPage('tutorial');
+      onNavigate('tutorial');
+    } else {
+      setError(result.error || 'Erreur lors de la mise à jour du profil');
+    }
+
+    setLoading(false);
+  };
+
+  const handleSkip = () => {
+    setCurrentPage('tutorial');
+    onNavigate('tutorial');
   };
 
   return (
-    <div className="px-6 py-6 min-h-screen flex flex-col justify-center">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        <div className="text-6xl text-center mb-6">⚙️</div>
-        <h1 className="text-2xl font-bold mb-2 text-center">Configurez votre profil</h1>
-        <p className="text-sm text-gray-medium mb-8 text-center">
-          Personnalisez votre expérience
-        </p>
-
-        <Input label="Ville" type="text" placeholder="Ex: Douala" />
-
-        <div className="mb-6">
-          <label className="block mb-3 text-sm font-semibold">
-            Catégories préférées (optionnel)
-          </label>
-          <div className="grid grid-cols-2 gap-4">
-            {categories.map((cat) => (
-              <motion.div
-                key={cat.id}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => togglePreference(cat.id)}
-                className={`bg-bg-medium border-2 rounded-[12px] p-4 text-center cursor-pointer transition-all ${
-                  preferences.includes(cat.id)
-                    ? 'border-orange bg-orange/10'
-                    : 'border-[#333] hover:border-orange hover:bg-[#222]'
-                }`}
-              >
-                <div className="text-[40px] mb-2">{cat.icon}</div>
-                <div className="text-sm font-semibold">{cat.label}</div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-
-        <Button variant="primary" size="block" onClick={() => onNavigate('tutorial')}>
-          Continuer →
-        </Button>
-
-        <button
-          onClick={() => onNavigate('tutorial')}
-          className="w-full text-center text-sm text-gray-medium mt-4"
+    <div>
+      <header className="header">
+        <div></div>
+        <div className="header-logo">🔥 Flash Deals</div>
+        <button 
+          onClick={handleSkip}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--color-orange)',
+            fontSize: '14px',
+            cursor: 'pointer',
+            fontWeight: 600
+          }}
         >
-          Passer cette étape
+          Passer
         </button>
-      </motion.div>
+      </header>
+
+      <div className="form-section">
+        <h1 className="form-title">👤 Complétez votre profil</h1>
+        <p className="form-subtitle">Aidez-nous à personnaliser votre expérience</p>
+
+        {error && (
+          <div style={{
+            padding: '12px',
+            backgroundColor: 'rgba(255, 61, 0, 0.1)',
+            border: '1px solid var(--color-red)',
+            borderRadius: '8px',
+            color: 'var(--color-red)',
+            marginBottom: '20px',
+            fontSize: '14px'
+          }}>
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <Input
+            label="Nom complet"
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Jean Dupont"
+            required
+          />
+
+          <Input
+            label="Numéro de téléphone"
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+237 6XX XXX XXX"
+            required
+          />
+
+          <div style={{ marginBottom: 'var(--spacing-md)' }}>
+            <label style={{
+              display: 'block',
+              marginBottom: 'var(--spacing-xs)',
+              fontSize: '14px',
+              fontWeight: 600
+            }}>
+              Ville
+            </label>
+            <select
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              required
+              style={{
+                width: '100%',
+                padding: '14px',
+                borderRadius: 'var(--border-radius)',
+                border: '2px solid #333',
+                backgroundColor: '#1a1a1a',
+                color: 'var(--color-white)',
+                fontSize: '16px',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="">Sélectionnez votre ville</option>
+              <option value="Douala">Douala</option>
+              <option value="Yaoundé">Yaoundé</option>
+              <option value="Bafoussam">Bafoussam</option>
+              <option value="Garoua">Garoua</option>
+              <option value="Bamenda">Bamenda</option>
+              <option value="Autre">Autre</option>
+            </select>
+          </div>
+
+          <div style={{ marginBottom: 'var(--spacing-md)' }}>
+            <label style={{
+              display: 'block',
+              marginBottom: 'var(--spacing-xs)',
+              fontSize: '14px',
+              fontWeight: 600
+            }}>
+              Région
+            </label>
+            <select
+              value={region}
+              onChange={(e) => setRegion(e.target.value)}
+              required
+              style={{
+                width: '100%',
+                padding: '14px',
+                borderRadius: 'var(--border-radius)',
+                border: '2px solid #333',
+                backgroundColor: '#1a1a1a',
+                color: 'var(--color-white)',
+                fontSize: '16px',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="">Sélectionnez votre région</option>
+              <option value="Littoral">Littoral</option>
+              <option value="Centre">Centre</option>
+              <option value="Ouest">Ouest</option>
+              <option value="Nord">Nord</option>
+              <option value="Nord-Ouest">Nord-Ouest</option>
+              <option value="Sud">Sud</option>
+              <option value="Est">Est</option>
+              <option value="Adamaoua">Adamaoua</option>
+              <option value="Sud-Ouest">Sud-Ouest</option>
+              <option value="Extrême-Nord">Extrême-Nord</option>
+            </select>
+          </div>
+
+          <Button
+            type="submit"
+            variant="primary"
+            size="block"
+            disabled={loading}
+          >
+            {loading ? '⏳ Enregistrement...' : 'Continuer'}
+          </Button>
+        </form>
+
+        <p style={{
+          textAlign: 'center',
+          color: 'var(--color-gray-medium)',
+          marginTop: '16px',
+          fontSize: '13px'
+        }}>
+          Vous pourrez modifier ces informations plus tard dans votre profil
+        </p>
+      </div>
     </div>
   );
 }

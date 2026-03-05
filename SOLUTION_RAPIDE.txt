@@ -1,0 +1,55 @@
+╔════════════════════════════════════════════════════════════════╗
+║                  SOLUTION AU PROBLÈME API KEY                  ║
+╚════════════════════════════════════════════════════════════════╝
+
+🔴 PROBLÈME:
+   Firebase: Error (auth/api-key-not-valid)
+
+✅ SOLUTION EN 2 ÉTAPES:
+
+┌────────────────────────────────────────────────────────────────┐
+│ ÉTAPE 1: Le fichier .env.local a été créé                     │
+│          avec vos clés Firebase correctes                      │
+└────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────┐
+│ ÉTAPE 2: REDÉMARRER LE SERVEUR (OBLIGATOIRE!)                 │
+│                                                                 │
+│  Option A - Automatique (Recommandé):                          │
+│  ═══════════════════════════════════                           │
+│  Double-cliquez sur: REDEMARRER_SERVEUR.bat                    │
+│                                                                 │
+│  Option B - Manuel:                                            │
+│  ═══════════════════                                           │
+│  1. Dans le terminal, appuyez sur Ctrl+C                       │
+│  2. Tapez: npm run dev                                         │
+│  3. Attendez que le serveur démarre                            │
+└────────────────────────────────────────────────────────────────┘
+
+📝 VÉRIFICATION:
+
+   Après redémarrage, ouvrez http://localhost:3000
+   
+   Dans la console du navigateur (F12), vous devriez voir:
+   ✅ Firebase initialisé
+   
+   Et PAS d'erreur "api-key-not-valid"
+
+🎯 TEST FINAL:
+
+   1. Allez sur http://localhost:3000/vendeur
+   2. Cliquez sur "Devenir Partenaire"
+   3. Essayez de créer un compte
+   
+   Si ça fonctionne → Problème résolu! 🎉
+
+⚠️  IMPORTANT:
+   
+   Les variables d'environnement (.env.local) ne sont chargées
+   QU'AU DÉMARRAGE du serveur Next.js.
+   
+   Donc TOUJOURS redémarrer après modification de .env.local!
+
+═══════════════════════════════════════════════════════════════════
+
+Pour plus de détails, consultez: PROBLEME_API_KEY_RESOLU.md

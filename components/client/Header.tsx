@@ -75,7 +75,9 @@ export default function Header({ onNavigate }: HeaderProps) {
               cursor: 'pointer',
               padding: '8px',
               position: 'relative'
-            }}>
+            }}
+            onClick={() => onNavigate?.('notifications')}
+            >
               <Bell size={20} />
               <span style={{
                 position: 'absolute',

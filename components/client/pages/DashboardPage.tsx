@@ -1,6 +1,7 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
+import { getActiveCampaigns, Campaign } from '@/lib/firebase/firestore';
 import DealCard from '@/components/client/DealCard';
 import { useClientStore } from '@/lib/stores/clientStore';
 
@@ -9,117 +10,104 @@ interface DashboardPageProps {
 }
 
 export default function DashboardPage({ onNavigate }: DashboardPageProps) {
-  const { addToCart } = useClientStore();
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user, setSelectedCampaignId } = useClientStore();
 
-  const deals = [
-    {
-      id: '1',
-      badge: 'HOT',
-      timer: '14h 23min',
-      icon: '📱',
-      title: 'Samsung Galaxy A54 - Noir 128GB',
-      rating: '⭐⭐⭐⭐⭐ 4.8/5 (127 avis)',
-      originalPrice: 245000,
-      currentPrice: 145000,
-      discount: '-41%',
-      stock: { current: 23, total: 50 },
-      delivery: '2 000 XAF',
-      location: 'Disponible à Douala & Yaoundé',
-      interested: 234,
-    },
-    {
-      id: '2',
-      badge: 'NOUVEAU',
-      timer: '8h 15min',
-      icon: '👟',
-      title: 'Nike Air Max 90 - Blanc/Rouge',
-      rating: '⭐⭐⭐⭐ 4.5/5 (89 avis)',
-      originalPrice: 85000,
-      currentPrice: 45000,
-      discount: '-47%',
-      stock: { current: 12, total: 30 },
-      delivery: '1 500 XAF',
-      location: 'Disponible à Douala',
-      interested: 156,
-    },
-    {
-      id: '3',
-      timer: '22h 45min',
-      icon: '🎧',
-      title: 'Sony WH-1000XM4 - Casque Bluetooth',
-      rating: '⭐⭐⭐⭐⭐ 4.9/5 (203 avis)',
-      originalPrice: 130000,
-      currentPrice: 85000,
-      discount: '-35%',
-      stock: { current: 8, total: 20 },
-      delivery: '2 000 XAF',
-      location: 'Disponible à Douala & Yaoundé',
-      interested: 312,
-    },
-  ];
+  useEffect(() => {
+    loadCampaigns();
+  }, []);
 
-  const handleAddToCart = (deal: typeof deals[0]) => {
-    addToCart({
-      id: deal.id,
-      title: deal.title,
-      price: deal.currentPrice,
-      originalPrice: deal.originalPrice,
-      quantity: 1,
-    });
+  const loadCampaigns = async () => {
+    const result = await getActiveCampaigns(10);
+    if (result.success && result.campaigns) {
+      setCampaigns(result.campaigns);
+    }
+    setLoading(false);
+  };
+
+  const handleDealClick = (campaignId: string) => {
+    setSelectedCampaignId(campaignId);
     onNavigate('product');
   };
 
+  const getTimeRemaining = (endDate: any) => {
+    if (!endDate) return '0h 0min';
+    
+    const end = endDate.toDate ? endDate.toDate() : new Date(endDate);
+    const now = new Date();
+    const diff = end.getTime() - now.getTime();
+    
+    if (diff <= 0) return 'Expiré';
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    return `${hours}h ${minutes}min`;
+  };
+
   return (
-    <div className="pb-20">
-      {/* Welcome Banner */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-r from-orange to-red p-6 text-center"
-      >
-        <h1 className="text-2xl font-bold mb-2">🔥 Deals du Jour</h1>
-        <p className="text-sm">Ne manquez pas ces offres exceptionnelles !</p>
-      </motion.div>
+    <div>
+      {/* Hero Section */}
+      <section style={{ padding: 'var(--spacing-lg)', backgroundColor: '#1a1a1a' }}>
+        <h1 style={{ fontSize: '24px', marginBottom: '8px' }}>
+          👋 Bonjour {user?.displayName || 'Client'}!
+        </h1>
+        <p style={{ color: 'var(--color-gray-medium)', fontSize: '14px' }}>
+          Découvrez les meilleurs deals du moment
+        </p>
+      </section>
 
-      {/* Deals List */}
-      <div className="px-4 py-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">Deals Actifs</h2>
-          <span className="text-sm text-orange">{deals.length} offres</span>
+      {/* Deals Actifs */}
+      <section className="section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
+          <h2 className="section-title">🔥 Deals Actifs</h2>
         </div>
 
-        {deals.map((deal, index) => (
-          <motion.div
-            key={deal.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-          >
-            <DealCard
-              {...deal}
-              actionLabel="Voir le deal →"
-              onAction={() => handleAddToCart(deal)}
-            />
-          </motion.div>
-        ))}
-      </div>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+            <p>Chargement des deals...</p>
+          </div>
+        ) : campaigns.length === 0 ? (
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '40px',
+            backgroundColor: '#1a1a1a',
+            borderRadius: '12px',
+            border: '1px solid #333'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📦</div>
+            <h3 style={{ marginBottom: '12px' }}>Aucune campagne active</h3>
+            <p style={{ color: '#666' }}>Les deals flash arrivent bientôt!</p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: 'var(--spacing-md)' }}>
+            {campaigns.map((campaign) => (
+              <DealCard
+                key={campaign.id}
+                id={campaign.id!}
+                badge={campaign.sold > campaign.stock * 0.5 ? 'POPULAIRE' : 'NOUVEAU'}
+                timer={getTimeRemaining(campaign.endDate)}
+                icon="📦"
+                title={campaign.title}
+                rating={`⭐⭐⭐⭐⭐ ${campaign.averageRating || 4.8}/5 (${campaign.reviewCount || 0} avis)`}
+                originalPrice={campaign.originalPrice}
+                currentPrice={campaign.currentPrice}
+                discount={`-${campaign.discount}%`}
+                stock={{ current: campaign.stock, total: campaign.stock + campaign.sold }}
+                delivery={campaign.delivery}
+                location={campaign.location}
+                interested={campaign.interested}
+                onAction={handleDealClick}
+                actionLabel="Voir le deal →"
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
-      {/* Categories */}
-      <div className="px-4 py-6 bg-bg-dark">
-        <h2 className="text-xl font-bold mb-4">Catégories</h2>
-        <div className="grid grid-cols-3 gap-4">
-          {['📱 Tech', '👗 Mode', '🏠 Maison', '💄 Beauté', '⚽ Sports', '🍔 Food'].map((cat, i) => (
-            <motion.div
-              key={i}
-              whileTap={{ scale: 0.95 }}
-              className="bg-bg-medium border border-[#333] rounded-lg p-4 text-center cursor-pointer hover:border-orange transition-colors"
-            >
-              <div className="text-2xl mb-1">{cat.split(' ')[0]}</div>
-              <div className="text-xs">{cat.split(' ')[1]}</div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
+      <div style={{ height: '80px' }}></div>
     </div>
   );
 }

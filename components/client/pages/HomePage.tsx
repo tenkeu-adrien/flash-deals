@@ -1,12 +1,40 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import DealCard from '@/components/client/DealCard';
+import { getActiveCampaigns, Campaign } from '@/lib/firebase/firestore';
+import { useClientStore } from '@/lib/stores/clientStore';
 
 interface HomePageProps {
   onNavigate: (page: string) => void;
 }
 
 export default function HomePage({ onNavigate }: HomePageProps) {
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { setSelectedCampaignId, isAuthenticated } = useClientStore();
+
+  useEffect(() => {
+    loadCampaigns();
+  }, []);
+
+  const loadCampaigns = async () => {
+    const result = await getActiveCampaigns(6);
+    if (result.success && result.campaigns) {
+      setCampaigns(result.campaigns);
+    }
+    setLoading(false);
+  };
+
+  const handleDealClick = (campaignId: string) => {
+    if (!isAuthenticated) {
+      onNavigate('signup');
+    } else {
+      setSelectedCampaignId(campaignId);
+      onNavigate('product');
+    }
+  };
+
   const steps = [
     { icon: '1️⃣', title: 'Inscrivez-vous gratuitement', description: 'Créez votre compte en 2 minutes avec votre numéro de téléphone' },
     { icon: '2️⃣', title: 'Découvrez les deals', description: 'Parcourez les offres flash disponibles pendant 24-48h seulement' },
@@ -20,6 +48,22 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     { name: 'Fatima B.', role: 'Cliente à Douala', text: 'Livraison ultra rapide et produits authentiques. Je recommande à 100%!' },
   ];
 
+  // Calculer le temps restant pour une campagne
+  const getTimeRemaining = (endDate: any) => {
+    if (!endDate) return '0h 0min';
+    
+    const end = endDate.toDate ? endDate.toDate() : new Date(endDate);
+    const now = new Date();
+    const diff = end.getTime() - now.getTime();
+    
+    if (diff <= 0) return 'Expiré';
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    return `${hours}h ${minutes}min`;
+  };
+
   return (
     <div>
       {/* Hero Section */}
@@ -27,23 +71,87 @@ export default function HomePage({ onNavigate }: HomePageProps) {
         <h1 className="hero-title">Deals à Prix Cassés 🔥</h1>
         <p className="hero-subtitle">Économisez jusqu'à 70% sur vos produits préférés</p>
 
-        <DealCard
-          id="deal-1"
-          badge="NOUVEAU"
-          timer="14h 23min"
-          icon="📱"
-          title="Samsung Galaxy A54 - Noir 128GB"
-          rating="⭐⭐⭐⭐⭐ 4.8/5 (127 avis)"
-          originalPrice={245000}
-          currentPrice={145000}
-          discount="-41%"
-          stock={{ current: 23, total: 50 }}
-          delivery="2 000 XAF"
-          location="Disponible à Douala & Yaoundé"
-          interested={234}
-          onAction={() => onNavigate('signup')}
-        />
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+            <p>Chargement des deals...</p>
+          </div>
+        ) : campaigns.length === 0 ? (
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '40px',
+            backgroundColor: '#1a1a1a',
+            borderRadius: '12px',
+            border: '1px solid #333'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📦</div>
+            <h3 style={{ marginBottom: '12px' }}>Aucune campagne active</h3>
+            <p style={{ color: '#666', marginBottom: '20px' }}>
+              Les deals flash arrivent bientôt!
+            </p>
+            <a 
+              href="/seed" 
+              className="btn btn-primary"
+              style={{ textDecoration: 'none' }}
+            >
+              🌱 Ajouter des données de test
+            </a>
+          </div>
+        ) : (
+          <>
+            {/* Premier deal en vedette */}
+            {campaigns[0] && (
+              <DealCard
+                id={campaigns[0].id!}
+                badge="NOUVEAU"
+                timer={getTimeRemaining(campaigns[0].endDate)}
+                icon={campaigns[0].images?.[0] ? '🖼️' : '📱'}
+                title={campaigns[0].title}
+                rating={`⭐⭐⭐⭐⭐ ${campaigns[0].averageRating || 4.8}/5 (${campaigns[0].reviewCount || 0} avis)`}
+                originalPrice={campaigns[0].originalPrice}
+                currentPrice={campaigns[0].currentPrice}
+                discount={`-${campaigns[0].discount}%`}
+                stock={{ current: campaigns[0].stock, total: campaigns[0].stock + campaigns[0].sold }}
+                delivery={campaigns[0].delivery}
+                location={campaigns[0].location}
+                interested={campaigns[0].interested}
+                onAction={handleDealClick}
+              />
+            )}
+          </>
+        )}
       </section>
+
+      {/* Autres deals */}
+      {campaigns.length > 1 && (
+        <section className="section" style={{ backgroundColor: 'var(--bg-dark)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
+            <h2 className="section-title">🔥 Autres Deals Actifs</h2>
+          </div>
+          <div style={{ display: 'grid', gap: 'var(--spacing-md)' }}>
+            {campaigns.slice(1).map((campaign) => (
+              <DealCard
+                key={campaign.id}
+                id={campaign.id!}
+                badge={campaign.sold > campaign.stock * 0.5 ? 'POPULAIRE' : 'NOUVEAU'}
+                timer={getTimeRemaining(campaign.endDate)}
+                icon="📦"
+                title={campaign.title}
+                rating={`⭐⭐⭐⭐⭐ ${campaign.averageRating || 4.8}/5 (${campaign.reviewCount || 0} avis)`}
+                originalPrice={campaign.originalPrice}
+                currentPrice={campaign.currentPrice}
+                discount={`-${campaign.discount}%`}
+                stock={{ current: campaign.stock, total: campaign.stock + campaign.sold }}
+                delivery={campaign.delivery}
+                location={campaign.location}
+                interested={campaign.interested}
+                onAction={handleDealClick}
+                actionLabel="Voir le deal →"
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* How it works */}
       <section className="section" style={{ backgroundColor: 'var(--bg-dark)' }}>

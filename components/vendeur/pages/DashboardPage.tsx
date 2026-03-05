@@ -1,103 +1,280 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
 import Button from '@/components/ui/Button';
-import Sidebar from '@/components/vendeur/Sidebar';
-import { TrendingUp, TrendingDown } from 'lucide-react';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { getFirebaseDb, Collections } from '@/lib/firebase/config';
+import { getCurrentUserId } from '@/lib/firebase/auth';
 
 interface DashboardPageProps {
   onNavigate: (page: string) => void;
 }
 
 export default function DashboardPage({ onNavigate }: DashboardPageProps) {
-  const metrics = [
-    { label: 'GMV Total', value: '2.4M XAF', change: '+12.5%', positive: true },
-    { label: 'Commandes', value: '156', change: '+8.2%', positive: true },
-    { label: 'Taux conversion', value: '7.8%', change: '-1.2%', positive: false },
-    { label: 'Panier moyen', value: '15,400 XAF', change: '+5.3%', positive: true },
-  ];
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    totalCampaigns: 0,
+    activeCampaigns: 0,
+    totalSales: 0,
+    totalRevenue: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    const vendorId = getCurrentUserId();
+    if (!vendorId) return;
+
+    try {
+      const db = getFirebaseDb();
+      
+      // Charger les campagnes du vendeur
+      const campaignsQuery = query(
+        collection(db, Collections.CAMPAIGNS),
+        where('vendorId', '==', vendorId)
+      );
+      
+      const snapshot = await getDocs(campaignsQuery);
+      const campaignsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      setCampaigns(campaignsData);
+
+      // Calculer les statistiques
+      const activeCampaigns = campaignsData.filter(c => c.status === 'active').length;
+      const totalSales = campaignsData.reduce((sum, c) => sum + (c.sold || 0), 0);
+      const totalRevenue = campaignsData.reduce((sum, c) => 
+        sum + ((c.currentPrice || 0) * (c.sold || 0)), 0
+      );
+
+      setStats({
+        totalCampaigns: campaignsData.length,
+        activeCampaigns,
+        totalSales,
+        totalRevenue
+      });
+    } catch (error) {
+      console.error('Erreur chargement dashboard:', error);
+    }
+
+    setLoading(false);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'var(--color-green)';
+      case 'pending': return 'var(--color-yellow)';
+      case 'completed': return 'var(--color-gray-medium)';
+      case 'cancelled': return 'var(--color-red)';
+      default: return '#666';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'active': return 'Active';
+      case 'pending': return 'En attente';
+      case 'completed': return 'Terminée';
+      case 'cancelled': return 'Annulée';
+      default: return status;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '40px' }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+        <p>Chargement...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex">
-      <Sidebar currentPage="dashboard" onNavigate={onNavigate} />
-      
-      <div className="flex-1 ml-[260px]">
-        <header className="bg-bg-medium border-b border-[#333] px-8 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold">Dashboard</h1>
-            <p className="text-sm text-gray-medium">Vue d'ensemble de vos performances</p>
-          </div>
-          <Button variant="primary" onClick={() => onNavigate('create-campaign')}>
-            + Nouvelle Campagne
-          </Button>
-        </header>
+    <div>
+      {/* Stats Cards */}
+      <section style={{ padding: 'var(--spacing-lg)' }}>
+        <h1 style={{ fontSize: '24px', marginBottom: 'var(--spacing-md)' }}>
+          📊 Tableau de bord
+        </h1>
 
-        <div className="p-8">
-          {/* Metrics */}
-          <div className="grid grid-cols-4 gap-6 mb-8">
-            {metrics.map((metric, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-bg-medium rounded-lg p-6 border border-[#333] relative overflow-hidden"
-              >
-                <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-orange to-red" />
-                <div className="text-[13px] text-gray-medium mb-2">{metric.label}</div>
-                <div className="text-[32px] font-bold mb-2">{metric.value}</div>
-                <div className={`text-[13px] flex items-center gap-1 ${metric.positive ? 'text-green' : 'text-red'}`}>
-                  {metric.positive ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                  {metric.change}
-                </div>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Quick Actions */}
-          <div className="bg-bg-medium rounded-lg p-6 border border-[#333] mb-8">
-            <h2 className="text-xl font-bold mb-4">Actions rapides</h2>
-            <div className="grid grid-cols-3 gap-4">
-              <Button variant="primary" onClick={() => onNavigate('create-campaign')}>
-                🚀 Créer une campagne
-              </Button>
-              <Button variant="secondary" onClick={() => onNavigate('campaigns')}>
-                📊 Voir mes campagnes
-              </Button>
-              <Button variant="secondary">
-                📦 Gérer les commandes
-              </Button>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: 'var(--spacing-md)',
+          marginBottom: 'var(--spacing-lg)'
+        }}>
+          <div style={{
+            backgroundColor: '#1a1a1a',
+            padding: 'var(--spacing-md)',
+            borderRadius: 'var(--border-radius)',
+            border: '1px solid #333'
+          }}>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--color-orange)' }}>
+              {stats.totalCampaigns}
+            </div>
+            <div style={{ fontSize: '13px', color: 'var(--color-gray-medium)' }}>
+              Campagnes totales
             </div>
           </div>
 
-          {/* Recent Campaigns */}
-          <div className="bg-bg-medium rounded-lg p-6 border border-[#333]">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Campagnes récentes</h2>
-              <button onClick={() => onNavigate('campaigns')} className="text-orange text-sm">
-                Voir tout →
-              </button>
+          <div style={{
+            backgroundColor: '#1a1a1a',
+            padding: 'var(--spacing-md)',
+            borderRadius: 'var(--border-radius)',
+            border: '1px solid #333'
+          }}>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--color-green)' }}>
+              {stats.activeCampaigns}
             </div>
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="flex items-center gap-4 p-4 bg-bg-card rounded-lg border border-[#333]">
-                  <div className="w-16 h-16 bg-bg-medium rounded-lg flex items-center justify-center text-2xl">
-                    📱
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold mb-1">Samsung Galaxy A54</h3>
-                    <p className="text-sm text-gray-medium">Actif • 23/50 vendus</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-lg font-bold text-orange">145,000 XAF</div>
-                    <div className="text-sm text-gray-medium">-41%</div>
-                  </div>
-                </div>
-              ))}
+            <div style={{ fontSize: '13px', color: 'var(--color-gray-medium)' }}>
+              Campagnes actives
+            </div>
+          </div>
+
+          <div style={{
+            backgroundColor: '#1a1a1a',
+            padding: 'var(--spacing-md)',
+            borderRadius: 'var(--border-radius)',
+            border: '1px solid #333'
+          }}>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--color-blue)' }}>
+              {stats.totalSales}
+            </div>
+            <div style={{ fontSize: '13px', color: 'var(--color-gray-medium)' }}>
+              Ventes totales
+            </div>
+          </div>
+
+          <div style={{
+            backgroundColor: '#1a1a1a',
+            padding: 'var(--spacing-md)',
+            borderRadius: 'var(--border-radius)',
+            border: '1px solid #333'
+          }}>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--color-orange)' }}>
+              {(stats.totalRevenue / 1000).toFixed(1)}K
+            </div>
+            <div style={{ fontSize: '13px', color: 'var(--color-gray-medium)' }}>
+              Revenus (XAF)
             </div>
           </div>
         </div>
-      </div>
+
+        {/* Actions rapides */}
+        <Button
+          onClick={() => onNavigate('create-campaign')}
+          variant="primary"
+          size="block"
+        >
+          ➕ Créer une nouvelle campagne
+        </Button>
+      </section>
+
+      {/* Mes campagnes */}
+      <section style={{ padding: '0 var(--spacing-lg) var(--spacing-lg)' }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 'var(--spacing-md)'
+        }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 'bold' }}>
+            🔥 Mes campagnes
+          </h2>
+          <button
+            onClick={() => onNavigate('campaigns')}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--color-orange)',
+              fontSize: '14px',
+              cursor: 'pointer',
+              fontWeight: 600
+            }}
+          >
+            Voir tout →
+          </button>
+        </div>
+
+        {campaigns.length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '40px',
+            backgroundColor: '#1a1a1a',
+            borderRadius: '12px',
+            border: '1px solid #333'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📦</div>
+            <h3 style={{ marginBottom: '12px' }}>Aucune campagne</h3>
+            <p style={{ color: '#666', marginBottom: '20px' }}>
+              Créez votre première campagne pour commencer à vendre!
+            </p>
+            <Button onClick={() => onNavigate('create-campaign')} variant="primary">
+              Créer une campagne
+            </Button>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: 'var(--spacing-md)' }}>
+            {campaigns.slice(0, 3).map((campaign) => (
+              <div
+                key={campaign.id}
+                style={{
+                  backgroundColor: '#1a1a1a',
+                  borderRadius: 'var(--border-radius)',
+                  padding: 'var(--spacing-md)',
+                  border: '1px solid #333'
+                }}
+              >
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  marginBottom: 'var(--spacing-sm)'
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>
+                      {campaign.title}
+                    </h3>
+                    <div style={{ fontSize: '14px', color: 'var(--color-gray-medium)' }}>
+                      {campaign.currentPrice?.toLocaleString()} XAF • {campaign.sold || 0}/{(campaign.stock || 0) + (campaign.sold || 0)} vendus
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: '12px',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    backgroundColor: getStatusColor(campaign.status),
+                    color: 'white',
+                    fontWeight: 600
+                  }}>
+                    {getStatusLabel(campaign.status)}
+                  </span>
+                </div>
+
+                <div style={{
+                  width: '100%',
+                  height: '6px',
+                  backgroundColor: '#333',
+                  borderRadius: '3px',
+                  overflow: 'hidden',
+                  marginTop: 'var(--spacing-sm)'
+                }}>
+                  <div style={{
+                    height: '100%',
+                    background: 'linear-gradient(90deg, var(--color-orange), var(--color-red))',
+                    width: `${((campaign.sold || 0) / ((campaign.stock || 0) + (campaign.sold || 0))) * 100}%`
+                  }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

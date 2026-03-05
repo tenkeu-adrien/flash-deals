@@ -1,4 +1,7 @@
-// Firebase Storage
+// ============================================
+// FIREBASE STORAGE
+// ============================================
+
 import {
   ref,
   uploadBytes,
@@ -16,37 +19,43 @@ import { getCurrentUserId } from './auth';
 // UPLOAD
 // ============================================
 
+/**
+ * Upload une image
+ */
 export async function uploadImage(
   file: File,
   folder = 'images'
 ): Promise<{ success: boolean; url?: string; path?: string; error?: string }> {
   try {
     const userId = getCurrentUserId();
-    if (!userId) throw new Error('User not logged in');
+    if (!userId) throw new Error('Utilisateur non connecté');
 
-    // Generate unique filename
+    // Générer un nom unique
     const timestamp = Date.now();
     const fileName = `${folder}/${userId}/${timestamp}_${file.name}`;
 
-    // Create reference
+    // Référence du fichier
     const storageRef = ref(storage, fileName);
 
     // Upload
     const snapshot = await uploadBytes(storageRef, file);
     const downloadURL = await getDownloadURL(snapshot.ref);
 
-    console.log('✅ Image uploaded:', downloadURL);
+    console.log('✅ Image uploadée:', downloadURL);
     return {
       success: true,
       url: downloadURL,
-      path: fileName,
+      path: fileName
     };
   } catch (error: any) {
-    console.error('❌ Upload error:', error);
+    console.error('❌ Erreur upload:', error);
     return { success: false, error: error.message };
   }
 }
 
+/**
+ * Upload plusieurs images
+ */
 export async function uploadMultipleImages(
   files: File[],
   folder = 'images'
@@ -58,14 +67,17 @@ export async function uploadMultipleImages(
 
     const urls = results.filter((r) => r.success).map((r) => r.url!);
 
-    console.log(`✅ ${urls.length} images uploaded`);
+    console.log(`✅ ${urls.length} images uploadées`);
     return { success: true, urls };
   } catch (error: any) {
-    console.error('❌ Multiple upload error:', error);
+    console.error('❌ Erreur upload multiple:', error);
     return { success: false, error: error.message };
   }
 }
 
+/**
+ * Upload avec progression
+ */
 export function uploadWithProgress(
   file: File,
   folder = 'images',
@@ -74,7 +86,7 @@ export function uploadWithProgress(
   return new Promise(async (resolve, reject) => {
     try {
       const userId = getCurrentUserId();
-      if (!userId) throw new Error('User not logged in');
+      if (!userId) throw new Error('Utilisateur non connecté');
 
       const timestamp = Date.now();
       const fileName = `${folder}/${userId}/${timestamp}_${file.name}`;
@@ -95,7 +107,7 @@ export function uploadWithProgress(
           resolve({
             success: true,
             url: downloadURL,
-            path: fileName,
+            path: fileName
           });
         }
       );
@@ -109,19 +121,25 @@ export function uploadWithProgress(
 // DELETE
 // ============================================
 
+/**
+ * Supprimer une image
+ */
 export async function deleteImage(filePath: string): Promise<{ success: boolean; error?: string }> {
   try {
     const storageRef = ref(storage, filePath);
     await deleteObject(storageRef);
 
-    console.log('✅ Image deleted');
+    console.log('✅ Image supprimée');
     return { success: true };
   } catch (error: any) {
-    console.error('❌ Delete error:', error);
+    console.error('❌ Erreur suppression:', error);
     return { success: false, error: error.message };
   }
 }
 
+/**
+ * Supprimer plusieurs images
+ */
 export async function deleteMultipleImages(filePaths: string[]): Promise<{ success: boolean; error?: string }> {
   try {
     const deletePromises = filePaths.map((path) => {
@@ -131,10 +149,10 @@ export async function deleteMultipleImages(filePaths: string[]): Promise<{ succe
 
     await Promise.all(deletePromises);
 
-    console.log(`✅ ${filePaths.length} images deleted`);
+    console.log(`✅ ${filePaths.length} images supprimées`);
     return { success: true };
   } catch (error: any) {
-    console.error('❌ Multiple delete error:', error);
+    console.error('❌ Erreur suppression multiple:', error);
     return { success: false, error: error.message };
   }
 }
@@ -143,6 +161,9 @@ export async function deleteMultipleImages(filePaths: string[]): Promise<{ succe
 // HELPERS
 // ============================================
 
+/**
+ * Obtenir l'URL de téléchargement
+ */
 export async function getDownloadUrl(filePath: string): Promise<{ success: boolean; url?: string; error?: string }> {
   try {
     const storageRef = ref(storage, filePath);
@@ -150,11 +171,14 @@ export async function getDownloadUrl(filePath: string): Promise<{ success: boole
 
     return { success: true, url };
   } catch (error: any) {
-    console.error('❌ Get URL error:', error);
+    console.error('❌ Erreur récupération URL:', error);
     return { success: false, error: error.message };
   }
 }
 
+/**
+ * Obtenir les métadonnées
+ */
 export async function getFileMetadata(filePath: string): Promise<{ success: boolean; metadata?: any; error?: string }> {
   try {
     const storageRef = ref(storage, filePath);
@@ -162,11 +186,14 @@ export async function getFileMetadata(filePath: string): Promise<{ success: bool
 
     return { success: true, metadata };
   } catch (error: any) {
-    console.error('❌ Get metadata error:', error);
+    console.error('❌ Erreur récupération métadonnées:', error);
     return { success: false, error: error.message };
   }
 }
 
+/**
+ * Lister les fichiers d'un dossier
+ */
 export async function listFiles(folder: string): Promise<{ success: boolean; files?: any[]; error?: string }> {
   try {
     const storageRef = ref(storage, folder);
@@ -183,14 +210,14 @@ export async function listFiles(folder: string): Promise<{ success: boolean; fil
           url,
           size: metadata.size,
           contentType: metadata.contentType,
-          created: metadata.timeCreated,
+          created: metadata.timeCreated
         };
       })
     );
 
     return { success: true, files };
   } catch (error: any) {
-    console.error('❌ List files error:', error);
+    console.error('❌ Erreur listage fichiers:', error);
     return { success: false, error: error.message };
   }
 }
@@ -199,15 +226,27 @@ export async function listFiles(folder: string): Promise<{ success: boolean; fil
 // VALIDATION
 // ============================================
 
-export function validateFileType(file: File, allowedTypes = ['image/jpeg', 'image/png', 'image/webp']): boolean {
+/**
+ * Valider le type de fichier
+ */
+export function validateFileType(
+  file: File,
+  allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+): boolean {
   return allowedTypes.includes(file.type);
 }
 
+/**
+ * Valider la taille du fichier (en MB)
+ */
 export function validateFileSize(file: File, maxSizeMB = 5): boolean {
   const maxSizeBytes = maxSizeMB * 1024 * 1024;
   return file.size <= maxSizeBytes;
 }
 
+/**
+ * Valider un fichier
+ */
 export function validateFile(
   file: File,
   maxSizeMB = 5,
@@ -216,14 +255,14 @@ export function validateFile(
   if (!validateFileType(file, allowedTypes)) {
     return {
       valid: false,
-      error: `Type de fichier non autorisé. Types acceptés: ${allowedTypes.join(', ')}`,
+      error: `Type de fichier non autorisé. Types acceptés: ${allowedTypes.join(', ')}`
     };
   }
 
   if (!validateFileSize(file, maxSizeMB)) {
     return {
       valid: false,
-      error: `Fichier trop volumineux. Taille max: ${maxSizeMB}MB`,
+      error: `Fichier trop volumineux. Taille max: ${maxSizeMB}MB`
     };
   }
 
@@ -234,7 +273,14 @@ export function validateFile(
 // COMPRESSION
 // ============================================
 
-export async function compressImage(file: File, maxWidth = 1920, quality = 0.8): Promise<File> {
+/**
+ * Compresser une image avant upload
+ */
+export async function compressImage(
+  file: File,
+  maxWidth = 1920,
+  quality = 0.8
+): Promise<File> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
@@ -246,7 +292,7 @@ export async function compressImage(file: File, maxWidth = 1920, quality = 0.8):
         let width = img.width;
         let height = img.height;
 
-        // Resize if necessary
+        // Redimensionner si nécessaire
         if (width > maxWidth) {
           height = (height * maxWidth) / width;
           width = maxWidth;
@@ -256,23 +302,31 @@ export async function compressImage(file: File, maxWidth = 1920, quality = 0.8):
         canvas.height = height;
 
         const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
+        if (!ctx) {
+          reject(new Error('Canvas context not available'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
 
         canvas.toBlob(
           (blob) => {
-            if (blob) {
-              const compressedFile = new File([blob], file.name, {
-                type: 'image/jpeg',
-                lastModified: Date.now(),
-              });
-
-              console.log(
-                `✅ Image compressed: ${(file.size / 1024).toFixed(2)}KB → ${(compressedFile.size / 1024).toFixed(2)}KB`
-              );
-              resolve(compressedFile);
-            } else {
+            if (!blob) {
               reject(new Error('Compression failed'));
+              return;
             }
+
+            const compressedFile = new File([blob], file.name, {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            });
+
+            console.log(
+              `✅ Image compressée: ${(file.size / 1024).toFixed(2)}KB → ${(
+                compressedFile.size / 1024
+              ).toFixed(2)}KB`
+            );
+            resolve(compressedFile);
           },
           'image/jpeg',
           quality
@@ -288,6 +342,9 @@ export async function compressImage(file: File, maxWidth = 1920, quality = 0.8):
   });
 }
 
+/**
+ * Upload avec compression automatique
+ */
 export async function uploadCompressedImage(
   file: File,
   folder = 'images',
@@ -295,19 +352,19 @@ export async function uploadCompressedImage(
   quality = 0.8
 ): Promise<{ success: boolean; url?: string; path?: string; error?: string }> {
   try {
-    // Validate file
+    // Valider le fichier
     const validation = validateFile(file);
     if (!validation.valid) {
       throw new Error(validation.error);
     }
 
-    // Compress
+    // Compresser
     const compressedFile = await compressImage(file, maxWidth, quality);
 
     // Upload
     return await uploadImage(compressedFile, folder);
   } catch (error: any) {
-    console.error('❌ Upload compressed error:', error);
+    console.error('❌ Erreur upload compressé:', error);
     return { success: false, error: error.message };
   }
 }

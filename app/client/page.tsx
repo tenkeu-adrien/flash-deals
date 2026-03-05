@@ -12,9 +12,11 @@ import OTPPage from '@/components/client/pages/OTPPage';
 import ProfileSetupPage from '@/components/client/pages/ProfileSetupPage';
 import TutorialPage from '@/components/client/pages/TutorialPage';
 import DashboardPage from '@/components/client/pages/DashboardPage';
+import SearchPage from '@/components/client/pages/SearchPage';
 import ProductPage from '@/components/client/pages/ProductPage';
 import CartPage from '@/components/client/pages/CartPage';
 import ProfilePage from '@/components/client/pages/ProfilePage';
+import NotificationsPage from '@/components/client/pages/NotificationsPage';
 
 export default function ClientApp() {
   const { currentPage, setCurrentPage, isAuthenticated } = useClientStore();
@@ -35,12 +37,16 @@ export default function ClientApp() {
         return <TutorialPage onNavigate={setCurrentPage} />;
       case 'dashboard':
         return <DashboardPage onNavigate={setCurrentPage} />;
+      case 'search':
+        return <SearchPage onNavigate={setCurrentPage} />;
       case 'product':
         return <ProductPage onNavigate={setCurrentPage} />;
       case 'cart':
         return <CartPage onNavigate={setCurrentPage} />;
       case 'profile':
         return <ProfilePage onNavigate={setCurrentPage} />;
+      case 'notifications':
+        return <NotificationsPage onNavigate={setCurrentPage} />;
       default:
         return <HomePage onNavigate={setCurrentPage} />;
     }
@@ -64,7 +70,7 @@ export default function ClientApp() {
         </motion.div>
       </AnimatePresence>
 
-      {isAuthenticated && ['dashboard', 'search', 'cart', 'profile'].includes(currentPage) && (
+      {isAuthenticated && ['dashboard', 'search', 'cart', 'profile', 'notifications'].includes(currentPage) && (
         <BottomNav currentPage={currentPage} onNavigate={setCurrentPage} />
       )}
     </div>

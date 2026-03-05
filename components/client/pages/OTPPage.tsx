@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { useState } from 'react';
 import Button from '@/components/ui/Button';
+import { useClientStore } from '@/lib/stores/clientStore';
 
 interface OTPPageProps {
   onNavigate: (page: string) => void;
@@ -10,65 +10,79 @@ interface OTPPageProps {
 
 export default function OTPPage({ onNavigate }: OTPPageProps) {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const { setCurrentPage } = useClientStore();
 
-  const handleChange = (index: number, value: string) => {
-    if (value.length <= 1 && /^\d*$/.test(value)) {
-      const newOtp = [...otp];
-      newOtp[index] = value;
-      setOtp(newOtp);
-      
-      if (value && index < 5) {
-        inputRefs.current[index + 1]?.focus();
-      }
-    }
-  };
+  // NOTE: La vérification par téléphone est désactivée selon les instructions
+  // Cette page est un placeholder pour la cohérence de l'interface
 
-  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !otp[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
+  const handleSkip = () => {
+    setCurrentPage('profile-setup');
+    onNavigate('profile-setup');
   };
 
   return (
-    <div className="px-6 py-6 min-h-screen flex flex-col justify-center">
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
-        <div className="text-6xl text-center mb-6">📱</div>
-        <h1 className="text-2xl font-bold mb-2 text-center">Vérification</h1>
-        <p className="text-sm text-gray-medium mb-8 text-center">
-          Entrez le code à 6 chiffres envoyé au<br />
-          <strong className="text-white">+237 6 XX XX XX XX</strong>
+    <div>
+      <header className="header">
+        <button 
+          onClick={() => onNavigate('signup')}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'white',
+            fontSize: '16px',
+            cursor: 'pointer'
+          }}
+        >
+          ← Retour
+        </button>
+        <div className="header-logo">🔥 Flash Deals</div>
+        <div></div>
+      </header>
+
+      <div className="form-section">
+        <h1 className="form-title">📱 Vérification désactivée</h1>
+        <p className="form-subtitle">
+          La vérification par SMS est temporairement désactivée
         </p>
 
-        <div className="flex justify-center gap-3 mb-6">
-          {otp.map((digit, index) => (
-            <input
-              key={index}
-              ref={(el) => { inputRefs.current[index] = el; }}
-              type="text"
-              maxLength={1}
-              value={digit}
-              onChange={(e) => handleChange(index, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(index, e)}
-              className="w-[60px] h-[60px] text-center text-2xl font-bold border-2 border-[#333] rounded-[12px] bg-bg-medium text-white focus:outline-none focus:border-orange"
-            />
-          ))}
+        <div style={{
+          backgroundColor: '#1a1a1a',
+          padding: 'var(--spacing-lg)',
+          borderRadius: 'var(--border-radius)',
+          border: '1px solid #333',
+          textAlign: 'center',
+          margin: 'var(--spacing-xl) 0'
+        }}>
+          <div style={{ fontSize: '64px', marginBottom: 'var(--spacing-md)' }}>
+            ℹ️
+          </div>
+          <p style={{
+            fontSize: '15px',
+            color: 'var(--color-gray-medium)',
+            lineHeight: '1.6'
+          }}>
+            La vérification par numéro de téléphone sera disponible prochainement.
+            Vous pouvez continuer sans vérification.
+          </p>
         </div>
 
         <Button
+          onClick={handleSkip}
           variant="primary"
           size="block"
-          onClick={() => onNavigate('profile-setup')}
-          disabled={otp.some(d => !d)}
         >
-          Vérifier
+          Continuer sans vérification
         </Button>
 
-        <p className="text-center text-sm text-gray-medium mt-6">
-          Code non reçu ?{' '}
-          <button className="text-orange font-semibold">Renvoyer (45s)</button>
+        <p style={{
+          textAlign: 'center',
+          color: 'var(--color-gray-medium)',
+          marginTop: '16px',
+          fontSize: '13px'
+        }}>
+          Vous pourrez ajouter votre numéro de téléphone plus tard dans votre profil
         </p>
-      </motion.div>
+      </div>
     </div>
   );
 }

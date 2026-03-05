@@ -9,6 +9,9 @@ import ClientsPage from '@/components/admin/pages/ClientsPage';
 import VendorsPage from '@/components/admin/pages/VendorsPage';
 import CampaignsPage from '@/components/admin/pages/CampaignsPage';
 import OrdersPage from '@/components/admin/pages/OrdersPage';
+import FinancesPage from '@/components/admin/pages/FinancesPage';
+import AnalyticsPage from '@/components/admin/pages/AnalyticsPage';
+import SettingsPage from '@/components/admin/pages/SettingsPage';
 
 export default function AdminApp() {
   const { currentPage, setCurrentPage, isAuthenticated } = useAdminStore();
@@ -29,6 +32,12 @@ export default function AdminApp() {
         return <CampaignsPage onNavigate={setCurrentPage} />;
       case 'orders':
         return <OrdersPage onNavigate={setCurrentPage} />;
+      case 'finances':
+        return <FinancesPage onNavigate={setCurrentPage} />;
+      case 'analytics':
+        return <AnalyticsPage onNavigate={setCurrentPage} />;
+      case 'settings':
+        return <SettingsPage onNavigate={setCurrentPage} />;
       default:
         return <DashboardPage onNavigate={setCurrentPage} />;
     }

@@ -9,6 +9,8 @@ import LoginPage from '@/components/vendeur/pages/LoginPage';
 import DashboardPage from '@/components/vendeur/pages/DashboardPage';
 import CreateCampaignPage from '@/components/vendeur/pages/CreateCampaignPage';
 import CampaignsPage from '@/components/vendeur/pages/CampaignsPage';
+import OrdersPage from '@/components/vendeur/pages/OrdersPage';
+import SettingsPage from '@/components/vendeur/pages/SettingsPage';
 
 export default function VendorApp() {
   const { currentPage, setCurrentPage } = useVendorStore();
@@ -27,6 +29,10 @@ export default function VendorApp() {
         return <CreateCampaignPage onNavigate={setCurrentPage} />;
       case 'campaigns':
         return <CampaignsPage onNavigate={setCurrentPage} />;
+      case 'orders':
+        return <OrdersPage onNavigate={setCurrentPage} />;
+      case 'settings':
+        return <SettingsPage onNavigate={setCurrentPage} />;
       default:
         return <LandingPage onNavigate={setCurrentPage} />;
     }

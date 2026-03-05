@@ -1,7 +1,10 @@
-// Firebase Authentication
+// ============================================
+// FIREBASE AUTHENTICATION
+// ============================================
+
 import {
-  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
   FacebookAuthProvider,
@@ -10,182 +13,162 @@ import {
   User,
   sendEmailVerification,
   sendPasswordResetEmail,
-  updatePassword,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  ConfirmationResult
+  updatePassword as firebaseUpdatePassword,
+  UserCredential
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from './config';
+import { auth, db, Collections } from './config';
+
+// ============================================
+// TYPES
+// ============================================
 
 export interface UserData {
   uid: string;
   email?: string;
-  phoneNumber?: string;
   displayName?: string;
   photoURL?: string;
+  phoneNumber?: string;
   role: 'client' | 'vendor' | 'admin';
-  status: 'active' | 'suspended' | 'pending';
+  status: 'active' | 'inactive' | 'suspended';
+  emailVerified: boolean;
+  phoneVerified?: boolean;
   createdAt: any;
   updatedAt: any;
-  emailVerified?: boolean;
-  phoneVerified?: boolean;
-  // Client specific
+  lastLoginAt?: any;
   preferences?: string[];
-  addresses?: any[];
-  // Vendor specific
-  businessName?: string;
-  businessType?: string;
-  siret?: string;
-  // Admin specific
-  permissions?: string[];
+  address?: {
+    street?: string;
+    city?: string;
+    region?: string;
+    postalCode?: string;
+  };
 }
 
 // ============================================
 // INSCRIPTION
 // ============================================
 
+/**
+ * Inscription avec email/password
+ */
 export async function signupWithEmail(
   email: string,
   password: string,
-  userData: Partial<UserData>
+  additionalData?: Partial<UserData>
 ): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
+    // Créer l'utilisateur
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
-    // Send verification email
+    // Envoyer email de vérification
     await sendEmailVerification(user);
 
-    // Create user profile in Firestore
-    await setDoc(doc(db, 'users', user.uid), {
+    // Créer le profil utilisateur dans Firestore
+    const userData: UserData = {
       uid: user.uid,
-      email,
-      ...userData,
-      role: userData.role || 'client',
+      email: email,
+      displayName: additionalData?.displayName || email.split('@')[0],
+      photoURL: additionalData?.photoURL || null,
+      role: 'client',
       status: 'active',
       emailVerified: false,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
+      ...additionalData
+    };
 
-    console.log('✅ User signed up:', user.uid);
+    await setDoc(doc(db, Collections.USERS, user.uid), userData);
+
+    console.log('✅ Inscription réussie:', user.uid);
     return { success: true, user };
   } catch (error: any) {
-    console.error('❌ Signup error:', error);
+    console.error('❌ Erreur inscription:', error);
     return { success: false, error: error.message };
   }
 }
 
-export async function signupWithPhone(
-  phoneNumber: string,
-  appVerifier: RecaptchaVerifier
-): Promise<{ success: boolean; confirmationResult?: ConfirmationResult; error?: string }> {
-  try {
-    const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
-    console.log('✅ OTP sent');
-    return { success: true, confirmationResult };
-  } catch (error: any) {
-    console.error('❌ Phone signup error:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-export async function verifyOTP(
-  confirmationResult: ConfirmationResult,
-  code: string,
-  userData: Partial<UserData>
-): Promise<{ success: boolean; user?: User; error?: string }> {
-  try {
-    const result = await confirmationResult.confirm(code);
-    const user = result.user;
-
-    // Create user profile
-    await setDoc(doc(db, 'users', user.uid), {
-      uid: user.uid,
-      phoneNumber: user.phoneNumber,
-      ...userData,
-      role: userData.role || 'client',
-      status: 'active',
-      phoneVerified: true,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    console.log('✅ OTP verified:', user.uid);
-    return { success: true, user };
-  } catch (error: any) {
-    console.error('❌ OTP verification error:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-export async function signupWithGoogle(
-  role: 'client' | 'vendor' | 'admin' = 'client'
-): Promise<{ success: boolean; user?: User; error?: string }> {
+/**
+ * Inscription avec Google
+ */
+export async function signupWithGoogle(): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
     const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(auth, provider);
     const user = result.user;
 
-    // Check if user profile exists
-    const userDoc = await getDoc(doc(db, 'users', user.uid));
+    // Vérifier si le profil existe déjà
+    const userDoc = await getDoc(doc(db, Collections.USERS, user.uid));
 
     if (!userDoc.exists()) {
-      // Create new profile
-      await setDoc(doc(db, 'users', user.uid), {
+      // Créer le profil
+      const userData: UserData = {
         uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        role,
+        email: user.email || '',
+        displayName: user.displayName || 'Utilisateur',
+        photoURL: user.photoURL || null,
+        role: 'client',
         status: 'active',
         emailVerified: user.emailVerified,
-        provider: 'google',
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      await setDoc(doc(db, Collections.USERS, user.uid), userData);
+    } else {
+      // Mettre à jour la dernière connexion
+      await updateDoc(doc(db, Collections.USERS, user.uid), {
+        lastLoginAt: serverTimestamp()
       });
     }
 
-    console.log('✅ Google signup successful:', user.uid);
+    console.log('✅ Connexion Google réussie:', user.uid);
     return { success: true, user };
   } catch (error: any) {
-    console.error('❌ Google signup error:', error);
+    console.error('❌ Erreur connexion Google:', error);
     return { success: false, error: error.message };
   }
 }
 
-export async function signupWithFacebook(
-  role: 'client' | 'vendor' | 'admin' = 'client'
-): Promise<{ success: boolean; user?: User; error?: string }> {
+/**
+ * Inscription avec Facebook
+ */
+export async function signupWithFacebook(): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
     const provider = new FacebookAuthProvider();
     const result = await signInWithPopup(auth, provider);
     const user = result.user;
 
-    // Check if user profile exists
-    const userDoc = await getDoc(doc(db, 'users', user.uid));
+    // Vérifier si le profil existe déjà
+    const userDoc = await getDoc(doc(db, Collections.USERS, user.uid));
 
     if (!userDoc.exists()) {
-      // Create new profile
-      await setDoc(doc(db, 'users', user.uid), {
+      // Créer le profil
+      const userData: UserData = {
         uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        role,
+        email: user.email || '',
+        displayName: user.displayName || 'Utilisateur',
+        photoURL: user.photoURL || null,
+        role: 'client',
         status: 'active',
         emailVerified: user.emailVerified,
-        provider: 'facebook',
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      await setDoc(doc(db, Collections.USERS, user.uid), userData);
+    } else {
+      // Mettre à jour la dernière connexion
+      await updateDoc(doc(db, Collections.USERS, user.uid), {
+        lastLoginAt: serverTimestamp()
       });
     }
 
-    console.log('✅ Facebook signup successful:', user.uid);
+    console.log('✅ Connexion Facebook réussie:', user.uid);
     return { success: true, user };
   } catch (error: any) {
-    console.error('❌ Facebook signup error:', error);
+    console.error('❌ Erreur connexion Facebook:', error);
     return { success: false, error: error.message };
   }
 }
@@ -194,6 +177,9 @@ export async function signupWithFacebook(
 // CONNEXION
 // ============================================
 
+/**
+ * Connexion avec email/password
+ */
 export async function loginWithEmail(
   email: string,
   password: string
@@ -202,68 +188,43 @@ export async function loginWithEmail(
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
-    // Update last login
-    await updateDoc(doc(db, 'users', user.uid), {
-      lastLoginAt: serverTimestamp(),
+    // Mettre à jour la dernière connexion
+    await updateDoc(doc(db, Collections.USERS, user.uid), {
+      lastLoginAt: serverTimestamp()
     });
 
-    console.log('✅ Login successful:', user.uid);
+    console.log('✅ Connexion réussie:', user.uid);
     return { success: true, user };
   } catch (error: any) {
-    console.error('❌ Login error:', error);
+    console.error('❌ Erreur connexion:', error);
     return { success: false, error: error.message };
   }
 }
 
-export async function loginWithGoogle(): Promise<{ success: boolean; user?: User; error?: string }> {
-  try {
-    const provider = new GoogleAuthProvider();
-    const result = await signInWithPopup(auth, provider);
-    const user = result.user;
+/**
+ * Connexion avec Google (alias de signupWithGoogle)
+ */
+export const loginWithGoogle = signupWithGoogle;
 
-    // Update last login
-    await updateDoc(doc(db, 'users', user.uid), {
-      lastLoginAt: serverTimestamp(),
-    });
-
-    console.log('✅ Google login successful:', user.uid);
-    return { success: true, user };
-  } catch (error: any) {
-    console.error('❌ Google login error:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-export async function loginWithFacebook(): Promise<{ success: boolean; user?: User; error?: string }> {
-  try {
-    const provider = new FacebookAuthProvider();
-    const result = await signInWithPopup(auth, provider);
-    const user = result.user;
-
-    // Update last login
-    await updateDoc(doc(db, 'users', user.uid), {
-      lastLoginAt: serverTimestamp(),
-    });
-
-    console.log('✅ Facebook login successful:', user.uid);
-    return { success: true, user };
-  } catch (error: any) {
-    console.error('❌ Facebook login error:', error);
-    return { success: false, error: error.message };
-  }
-}
+/**
+ * Connexion avec Facebook (alias de signupWithFacebook)
+ */
+export const loginWithFacebook = signupWithFacebook;
 
 // ============================================
 // DÉCONNEXION
 // ============================================
 
+/**
+ * Déconnexion
+ */
 export async function logout(): Promise<{ success: boolean; error?: string }> {
   try {
     await signOut(auth);
-    console.log('✅ Logout successful');
+    console.log('✅ Déconnexion réussie');
     return { success: true };
   } catch (error: any) {
-    console.error('❌ Logout error:', error);
+    console.error('❌ Erreur déconnexion:', error);
     return { success: false, error: error.message };
   }
 }
@@ -272,27 +233,33 @@ export async function logout(): Promise<{ success: boolean; error?: string }> {
 // MOT DE PASSE
 // ============================================
 
+/**
+ * Réinitialiser le mot de passe
+ */
 export async function resetPassword(email: string): Promise<{ success: boolean; error?: string }> {
   try {
     await sendPasswordResetEmail(auth, email);
-    console.log('✅ Password reset email sent');
+    console.log('✅ Email de réinitialisation envoyé');
     return { success: true };
   } catch (error: any) {
-    console.error('❌ Password reset error:', error);
+    console.error('❌ Erreur réinitialisation:', error);
     return { success: false, error: error.message };
   }
 }
 
-export async function changePassword(newPassword: string): Promise<{ success: boolean; error?: string }> {
+/**
+ * Changer le mot de passe
+ */
+export async function updatePassword(newPassword: string): Promise<{ success: boolean; error?: string }> {
   try {
     const user = auth.currentUser;
-    if (!user) throw new Error('No user logged in');
+    if (!user) throw new Error('Utilisateur non connecté');
 
-    await updatePassword(user, newPassword);
-    console.log('✅ Password changed');
+    await firebaseUpdatePassword(user, newPassword);
+    console.log('✅ Mot de passe changé');
     return { success: true };
   } catch (error: any) {
-    console.error('❌ Password change error:', error);
+    console.error('❌ Erreur changement mot de passe:', error);
     return { success: false, error: error.message };
   }
 }
@@ -301,58 +268,79 @@ export async function changePassword(newPassword: string): Promise<{ success: bo
 // PROFIL
 // ============================================
 
+/**
+ * Obtenir le profil utilisateur
+ */
 export async function getUserProfile(userId?: string): Promise<{ success: boolean; profile?: UserData; error?: string }> {
   try {
     const uid = userId || auth.currentUser?.uid;
-    if (!uid) throw new Error('No user ID provided');
+    if (!uid) throw new Error('Utilisateur non connecté');
 
-    const docSnap = await getDoc(doc(db, 'users', uid));
+    const docSnap = await getDoc(doc(db, Collections.USERS, uid));
 
     if (docSnap.exists()) {
       return { success: true, profile: docSnap.data() as UserData };
     } else {
-      return { success: false, error: 'Profile not found' };
+      return { success: false, error: 'Profil non trouvé' };
     }
   } catch (error: any) {
-    console.error('❌ Get profile error:', error);
+    console.error('❌ Erreur récupération profil:', error);
     return { success: false, error: error.message };
   }
 }
 
+/**
+ * Mettre à jour le profil
+ */
 export async function updateUserProfile(data: Partial<UserData>): Promise<{ success: boolean; error?: string }> {
   try {
     const uid = auth.currentUser?.uid;
-    if (!uid) throw new Error('No user logged in');
+    if (!uid) throw new Error('Utilisateur non connecté');
 
-    await updateDoc(doc(db, 'users', uid), {
+    await updateDoc(doc(db, Collections.USERS, uid), {
       ...data,
-      updatedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
     });
 
-    console.log('✅ Profile updated');
+    console.log('✅ Profil mis à jour');
     return { success: true };
   } catch (error: any) {
-    console.error('❌ Update profile error:', error);
+    console.error('❌ Erreur mise à jour profil:', error);
     return { success: false, error: error.message };
   }
 }
 
 // ============================================
-// AUTH STATE LISTENER
+// LISTENER
 // ============================================
 
+/**
+ * Écouter les changements d'authentification
+ */
 export function onAuthStateChange(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, callback);
 }
 
+/**
+ * Obtenir l'utilisateur actuel
+ */
 export function getCurrentUser(): User | null {
+  if (typeof window === 'undefined' || !auth) return null;
   return auth.currentUser;
 }
 
+/**
+ * Obtenir l'ID de l'utilisateur actuel
+ */
 export function getCurrentUserId(): string | null {
+  if (typeof window === 'undefined' || !auth) return null;
   return auth.currentUser?.uid || null;
 }
 
+/**
+ * Vérifier si l'utilisateur est connecté
+ */
 export function isUserLoggedIn(): boolean {
+  if (typeof window === 'undefined' || !auth) return false;
   return auth.currentUser !== null;
 }

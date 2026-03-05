@@ -1,91 +1,346 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
 import Button from '@/components/ui/Button';
+import { getCampaign, Campaign, addToCart, markAsInterested } from '@/lib/firebase/firestore';
 import { useClientStore } from '@/lib/stores/clientStore';
-import { ArrowLeft } from 'lucide-react';
 
 interface ProductPageProps {
   onNavigate: (page: string) => void;
 }
 
 export default function ProductPage({ onNavigate }: ProductPageProps) {
-  const { addToCart } = useClientStore();
+  const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [quantity, setQuantity] = useState(1);
+  const [addingToCart, setAddingToCart] = useState(false);
+  const { user, selectedCampaignId } = useClientStore();
 
-  const handleAddToCart = () => {
-    addToCart({
-      id: '1',
-      title: 'Samsung Galaxy A54 - Noir 128GB',
-      price: 145000,
-      originalPrice: 245000,
-      quantity: 1,
-    });
-    onNavigate('cart');
+  useEffect(() => {
+    if (selectedCampaignId) {
+      loadCampaign();
+    }
+  }, [selectedCampaignId]);
+
+  const loadCampaign = async () => {
+    if (!selectedCampaignId) return;
+
+    const result = await getCampaign(selectedCampaignId);
+    if (result.success && result.campaign) {
+      setCampaign(result.campaign);
+    }
+    setLoading(false);
   };
 
+  const handleAddToCart = async () => {
+    if (!campaign?.id) return;
+
+    setAddingToCart(true);
+    const result = await addToCart(campaign.id, quantity);
+
+    if (result.success) {
+      alert('✅ Produit ajouté au panier!');
+      onNavigate('cart');
+    } else {
+      alert('❌ ' + (result.error || 'Erreur lors de l\'ajout au panier'));
+    }
+
+    setAddingToCart(false);
+  };
+
+  const handleInterested = async () => {
+    if (!campaign?.id) return;
+
+    const result = await markAsInterested(campaign.id);
+    if (result.success) {
+      alert('✅ Vous serez notifié des prochains deals similaires!');
+    }
+  };
+
+  const getTimeRemaining = (endDate: any) => {
+    if (!endDate) return '0h 0min';
+    
+    const end = endDate.toDate ? endDate.toDate() : new Date(endDate);
+    const now = new Date();
+    const diff = end.getTime() - now.getTime();
+    
+    if (diff <= 0) return 'Expiré';
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    return `${hours}h ${minutes}min`;
+  };
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '40px' }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+        <p>Chargement...</p>
+      </div>
+    );
+  }
+
+  if (!campaign) {
+    return (
+      <div style={{ textAlign: 'center', padding: '40px' }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>❌</div>
+        <p>Produit non trouvé</p>
+        <Button onClick={() => onNavigate('dashboard')} variant="primary">
+          Retour aux deals
+        </Button>
+      </div>
+    );
+  }
+
+  const stockPercentage = (campaign.stock / (campaign.stock + campaign.sold)) * 100;
+
   return (
-    <div className="pb-20">
-      <div className="sticky top-0 bg-black z-10 px-4 py-4 flex items-center gap-4 border-b border-[#222]">
-        <button onClick={() => onNavigate('dashboard')} className="text-white">
-          <ArrowLeft size={24} />
+    <div>
+      <header className="header">
+        <button 
+          onClick={() => onNavigate('dashboard')}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'white',
+            fontSize: '16px',
+            cursor: 'pointer'
+          }}
+        >
+          ← Retour
         </button>
-        <h1 className="text-lg font-bold">Détails du produit</h1>
+        <div className="header-logo">🔥 Flash Deals</div>
+        <button 
+          onClick={() => onNavigate('cart')}
+          className="icon-btn"
+        >
+          🛒
+        </button>
+      </header>
+
+      {/* Image principale */}
+      <div style={{ position: 'relative' }}>
+        <div style={{
+          position: 'absolute',
+          top: 'var(--spacing-sm)',
+          left: 'var(--spacing-sm)',
+          backgroundColor: 'var(--color-orange)',
+          color: 'white',
+          padding: '6px 12px',
+          borderRadius: '6px',
+          fontSize: '12px',
+          fontWeight: 'bold',
+          zIndex: 10
+        }}>
+          NOUVEAU
+        </div>
+        <div style={{
+          position: 'absolute',
+          top: 'var(--spacing-sm)',
+          right: 'var(--spacing-sm)',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          color: 'var(--color-orange)',
+          padding: '8px 12px',
+          borderRadius: '6px',
+          fontSize: '14px',
+          fontWeight: 'bold',
+          backdropFilter: 'blur(10px)'
+        }}>
+          ⏰ {getTimeRemaining(campaign.endDate)}
+        </div>
+        <div style={{
+          width: '100%',
+          height: '320px',
+          background: campaign.images?.[0] 
+            ? `url(${campaign.images[0]}) center/cover` 
+            : 'linear-gradient(to bottom, #FF6600, #000)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '80px'
+        }}>
+          {!campaign.images?.[0] && '📦'}
+        </div>
       </div>
 
-      <div className="relative">
-        <div className="absolute top-4 left-4 bg-orange text-white px-3 py-1.5 rounded-md text-xs font-bold z-10">
-          HOT
+      {/* Contenu */}
+      <div style={{ padding: 'var(--spacing-lg)' }}>
+        <h1 style={{ fontSize: '24px', marginBottom: 'var(--spacing-sm)' }}>
+          {campaign.title}
+        </h1>
+
+        <div style={{ color: '#FFD700', fontSize: '14px', marginBottom: 'var(--spacing-md)' }}>
+          ⭐⭐⭐⭐⭐ {campaign.averageRating || 4.8}/5 ({campaign.reviewCount || 0} avis)
         </div>
-        <div className="absolute top-4 right-4 bg-black/80 backdrop-blur-[10px] text-orange px-3 py-2 rounded-md text-sm font-bold">
-          ⏰ 14h 23min
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-md)' }}>
+          <span style={{
+            textDecoration: 'line-through',
+            color: 'var(--color-gray-medium)',
+            fontSize: '18px'
+          }}>
+            {campaign.originalPrice.toLocaleString()} XAF
+          </span>
+          <span style={{
+            fontSize: '28px',
+            fontWeight: 'bold',
+            color: 'var(--color-orange)'
+          }}>
+            {campaign.currentPrice.toLocaleString()} XAF
+          </span>
+          <span style={{
+            backgroundColor: 'var(--color-red)',
+            color: 'white',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            fontSize: '14px',
+            fontWeight: 'bold'
+          }}>
+            -{campaign.discount}%
+          </span>
         </div>
-        <div className="w-full h-[400px] bg-gradient-to-b from-[#2a2a2a] to-bg-medium flex items-center justify-center text-[120px]">
-          📱
+
+        {/* Stock */}
+        <div style={{ marginBottom: 'var(--spacing-lg)' }}>
+          <p style={{ fontSize: '14px', color: 'var(--color-gray-medium)', marginBottom: '4px' }}>
+            📦 Plus que {campaign.stock}/{campaign.stock + campaign.sold} unités disponibles
+          </p>
+          <div style={{
+            width: '100%',
+            height: '8px',
+            backgroundColor: '#333',
+            borderRadius: '4px',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              height: '100%',
+              background: 'linear-gradient(90deg, var(--color-orange) 0%, var(--color-red) 100%)',
+              width: `${stockPercentage}%`,
+              transition: 'width 0.3s ease'
+            }} />
+          </div>
         </div>
+
+        {/* Description */}
+        <div style={{
+          backgroundColor: '#1a1a1a',
+          padding: 'var(--spacing-md)',
+          borderRadius: 'var(--border-radius)',
+          marginBottom: 'var(--spacing-md)',
+          border: '1px solid #333'
+        }}>
+          <h3 style={{ fontSize: '16px', marginBottom: 'var(--spacing-sm)' }}>📝 Description</h3>
+          <p style={{ fontSize: '14px', color: 'var(--color-gray-medium)', lineHeight: '1.6' }}>
+            {campaign.description}
+          </p>
+        </div>
+
+        {/* Infos livraison */}
+        <div style={{
+          backgroundColor: '#1a1a1a',
+          padding: 'var(--spacing-md)',
+          borderRadius: 'var(--border-radius)',
+          marginBottom: 'var(--spacing-md)',
+          border: '1px solid #333'
+        }}>
+          <div style={{ fontSize: '14px', marginBottom: 'var(--spacing-xs)' }}>
+            🚚 {campaign.delivery}
+          </div>
+          <div style={{ fontSize: '14px', color: 'var(--color-gray-medium)' }}>
+            📍 {campaign.location}
+          </div>
+        </div>
+
+        {/* Quantité */}
+        <div style={{ marginBottom: 'var(--spacing-lg)' }}>
+          <label style={{
+            display: 'block',
+            marginBottom: 'var(--spacing-xs)',
+            fontSize: '14px',
+            fontWeight: 600
+          }}>
+            Quantité
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
+            <button
+              onClick={() => setQuantity(Math.max(1, quantity - 1))}
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '6px',
+                border: '1px solid #333',
+                backgroundColor: '#222',
+                color: 'var(--color-white)',
+                fontSize: '20px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              -
+            </button>
+            <span style={{
+              fontSize: '18px',
+              fontWeight: 600,
+              minWidth: '40px',
+              textAlign: 'center'
+            }}>
+              {quantity}
+            </span>
+            <button
+              onClick={() => setQuantity(Math.min(campaign.stock, quantity + 1))}
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '6px',
+                border: '1px solid #333',
+                backgroundColor: '#222',
+                color: 'var(--color-white)',
+                fontSize: '20px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <Button
+          onClick={handleAddToCart}
+          variant="primary"
+          size="block"
+          disabled={addingToCart || campaign.stock === 0}
+        >
+          {addingToCart ? '⏳ Ajout...' : campaign.stock === 0 ? 'Rupture de stock' : `🛒 Ajouter au panier - ${(campaign.currentPrice * quantity).toLocaleString()} XAF`}
+        </Button>
+
+        <button
+          onClick={handleInterested}
+          style={{
+            width: '100%',
+            padding: '14px',
+            marginTop: 'var(--spacing-sm)',
+            borderRadius: 'var(--border-radius)',
+            border: '2px solid #333',
+            backgroundColor: '#1a1a1a',
+            color: 'var(--color-white)',
+            fontSize: '15px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'var(--transition)'
+          }}
+        >
+          ⭐ Je suis intéressé ({campaign.interested} personnes)
+        </button>
       </div>
 
-      <div className="px-4 py-6">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-2xl font-bold mb-2">Samsung Galaxy A54 - Noir 128GB</h1>
-          <div className="text-[#FFD700] text-sm mb-4">⭐⭐⭐⭐⭐ 4.8/5 (127 avis)</div>
-
-          <div className="flex items-center gap-3 mb-4 flex-wrap">
-            <span className="line-through text-gray-medium text-lg">245 000 XAF</span>
-            <span className="text-3xl font-bold text-orange">145 000 XAF</span>
-            <span className="bg-red text-white px-3 py-1 rounded text-sm font-bold">-41%</span>
-          </div>
-
-          <div className="bg-bg-medium border border-[#333] rounded-lg p-4 mb-4">
-            <p className="text-sm text-gray-medium mb-2">📦 Plus que 23/50 unités disponibles</p>
-            <div className="w-full h-2 bg-[#333] rounded overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-orange to-red" style={{ width: '46%' }} />
-            </div>
-          </div>
-
-          <div className="bg-bg-medium border border-[#333] rounded-lg p-4 mb-6">
-            <h3 className="font-bold mb-3">📋 Caractéristiques</h3>
-            <ul className="space-y-2 text-sm">
-              <li>• Écran: 6.4" Super AMOLED</li>
-              <li>• Processeur: Exynos 1380</li>
-              <li>• RAM: 8GB</li>
-              <li>• Stockage: 128GB</li>
-              <li>• Caméra: 50MP + 12MP + 5MP</li>
-              <li>• Batterie: 5000mAh</li>
-            </ul>
-          </div>
-
-          <div className="bg-bg-medium border border-[#333] rounded-lg p-4 mb-6">
-            <h3 className="font-bold mb-2">🚚 Livraison</h3>
-            <p className="text-sm text-gray-medium">Frais: 2 000 XAF</p>
-            <p className="text-sm text-gray-medium">Délai: 24-48h</p>
-            <p className="text-sm text-gray-medium">Zones: Douala & Yaoundé</p>
-          </div>
-
-          <Button variant="primary" size="block" onClick={handleAddToCart}>
-            Ajouter au panier 🛒
-          </Button>
-        </motion.div>
-      </div>
+      <div style={{ height: '80px' }}></div>
     </div>
   );
 }

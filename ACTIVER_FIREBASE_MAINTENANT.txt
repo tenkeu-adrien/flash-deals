@@ -1,0 +1,166 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║                                                                   ║
+║              🔥 ACTIVER FIREBASE - ACTION URGENTE 🔥              ║
+║                                                                   ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+
+❌ ERREUR ACTUELLE:
+   Firebase: Error (auth/configuration-not-found)
+
+💡 CAUSE:
+   Firebase Authentication n'est pas activée dans votre projet
+
+
+═══════════════════════════════════════════════════════════════════════
+                    🚀 ÉTAPES À SUIVRE MAINTENANT
+═══════════════════════════════════════════════════════════════════════
+
+┌───────────────────────────────────────────────────────────────────┐
+│ ÉTAPE 1: Ouvrir la Console Firebase                              │
+└───────────────────────────────────────────────────────────────────┘
+
+  1. Ouvrez votre navigateur
+  2. Allez sur: https://console.firebase.google.com
+  3. Sélectionnez votre projet: wego-97624
+
+
+┌───────────────────────────────────────────────────────────────────┐
+│ ÉTAPE 2: Activer Authentication                                   │
+└───────────────────────────────────────────────────────────────────┘
+
+  1. Dans le menu de gauche, cliquez sur "Authentication" 🔐
+  2. Cliquez sur "Get started" (Commencer)
+  3. Allez dans "Sign-in method" (Méthode de connexion)
+  4. Cliquez sur "Email/Password"
+  5. ACTIVEZ le premier bouton (Email/Password)
+  6. Cliquez sur "Save" (Enregistrer)
+
+  ✅ Authentication activée!
+
+
+┌───────────────────────────────────────────────────────────────────┐
+│ ÉTAPE 3: Activer Firestore Database                               │
+└───────────────────────────────────────────────────────────────────┘
+
+  1. Dans le menu de gauche, cliquez sur "Firestore Database" 📊
+  2. Cliquez sur "Create database" (Créer une base de données)
+  3. Choisissez "Start in test mode" (Mode test)
+  4. Sélectionnez une région: europe-west (Belgique)
+  5. Cliquez sur "Enable" (Activer)
+
+  ✅ Firestore activé!
+
+
+┌───────────────────────────────────────────────────────────────────┐
+│ ÉTAPE 4: Activer Storage                                          │
+└───────────────────────────────────────────────────────────────────┘
+
+  1. Dans le menu de gauche, cliquez sur "Storage" 📦
+  2. Cliquez sur "Get started" (Commencer)
+  3. Choisissez "Start in test mode" (Mode test)
+  4. Cliquez sur "Next" puis "Done"
+
+  ✅ Storage activé!
+
+
+┌───────────────────────────────────────────────────────────────────┐
+│ ÉTAPE 5: Configurer les Règles Firestore                          │
+└───────────────────────────────────────────────────────────────────┘
+
+  1. Dans "Firestore Database", allez dans "Rules" (Règles)
+  2. Remplacez tout le contenu par:
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ rules_version = '2';                                        │
+  │ service cloud.firestore {                                   │
+  │   match /databases/{database}/documents {                   │
+  │     match /{document=**} {                                  │
+  │       allow read, write: if true;                           │
+  │     }                                                        │
+  │   }                                                          │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  3. Cliquez sur "Publish" (Publier)
+
+  ✅ Règles Firestore configurées!
+
+
+┌───────────────────────────────────────────────────────────────────┐
+│ ÉTAPE 6: Configurer les Règles Storage                            │
+└───────────────────────────────────────────────────────────────────┘
+
+  1. Dans "Storage", allez dans "Rules" (Règles)
+  2. Remplacez tout le contenu par:
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ rules_version = '2';                                        │
+  │ service firebase.storage {                                  │
+  │   match /b/{bucket}/o {                                     │
+  │     match /{allPaths=**} {                                  │
+  │       allow read, write: if true;                           │
+  │     }                                                        │
+  │   }                                                          │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  3. Cliquez sur "Publish" (Publier)
+
+  ✅ Règles Storage configurées!
+
+
+═══════════════════════════════════════════════════════════════════════
+                    🔄 REDÉMARRER L'APPLICATION
+═══════════════════════════════════════════════════════════════════════
+
+  Après avoir activé tout dans Firebase:
+
+  1. Arrêtez le serveur (Ctrl+C dans le terminal)
+  2. Nettoyez le cache:
+     rmdir /s /q .next
+
+  3. Redémarrez:
+     npm run dev
+
+
+═══════════════════════════════════════════════════════════════════════
+                    🧪 TESTER
+═══════════════════════════════════════════════════════════════════════
+
+  1. Ouvrez: http://localhost:3000/vendeur
+  2. Cliquez sur "Devenir Partenaire"
+  3. Remplissez le formulaire
+  4. Essayez de créer un compte
+
+  ✅ Si ça fonctionne = Firebase est bien configuré!
+
+
+═══════════════════════════════════════════════════════════════════════
+                    📋 CHECKLIST
+═══════════════════════════════════════════════════════════════════════
+
+  [ ] Authentication activée (Email/Password)
+  [ ] Firestore Database créée
+  [ ] Storage activé
+  [ ] Règles Firestore publiées
+  [ ] Règles Storage publiées
+  [ ] Serveur redémarré
+  [ ] Test d'inscription réussi
+
+
+═══════════════════════════════════════════════════════════════════════
+                    ⚠️ IMPORTANT
+═══════════════════════════════════════════════════════════════════════
+
+  Les règles ci-dessus sont pour le DÉVELOPPEMENT.
+  Elles permettent à tout le monde de lire et écrire.
+
+  Pour la PRODUCTION, consultez: REGLES_FIREBASE_PRODUCTION.md
+
+
+═══════════════════════════════════════════════════════════════════════
+
+  📚 Documentation complète: ACTIVER_FIREBASE.md
+
+═══════════════════════════════════════════════════════════════════════

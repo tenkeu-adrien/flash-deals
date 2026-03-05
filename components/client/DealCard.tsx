@@ -17,11 +17,12 @@ interface DealCardProps {
   delivery: string;
   location: string;
   interested: number;
-  onAction?: () => void;
+  onAction?: (campaignId: string) => void;
   actionLabel?: string;
 }
 
 export default function DealCard({
+  id,
   badge,
   timer,
   icon,
@@ -133,7 +134,7 @@ export default function DealCard({
           📍 {location}
         </div>
 
-        <Button variant="primary" size="block" onClick={onAction}>
+        <Button variant="primary" size="block" onClick={() => onAction?.(id)}>
           {actionLabel}
         </Button>
 
