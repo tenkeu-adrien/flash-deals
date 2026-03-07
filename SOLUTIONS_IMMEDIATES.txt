@@ -1,0 +1,110 @@
+═══════════════════════════════════════════════════════════════
+  SOLUTIONS IMMÉDIATES - Flash Deals
+═══════════════════════════════════════════════════════════════
+
+🔴 PROBLÈME 1: Aucun deal ne s'affiche
+───────────────────────────────────────────────────────────────
+SOLUTION:
+1. Ouvrir Firebase Console: https://console.firebase.google.com/project/wego-97624
+2. Aller dans Firestore Database > campaigns
+3. Vérifier qu'il y a des documents
+4. Pour chaque campagne, vérifier que status = "active"
+5. Si status = "pending", le changer en "active"
+
+OU créer une campagne de test:
+- Aller sur http://localhost:3000/vendeur
+- S'inscrire comme vendeur
+- Créer une campagne
+- Dans Firestore, changer le status à "active"
+
+═══════════════════════════════════════════════════════════════
+
+🔴 PROBLÈME 2: Erreur "email-already-in-use"
+───────────────────────────────────────────────────────────────
+SOLUTION RAPIDE:
+Utiliser un email différent pour le vendeur
+Exemple: vendeur@test.com au lieu de client@test.com
+
+OU
+
+Supprimer l'utilisateur existant:
+1. Firebase Console > Authentication
+2. Trouver l'utilisateur
+3. Cliquer sur les 3 points > Supprimer
+4. Réessayer l'inscription
+
+═══════════════════════════════════════════════════════════════
+
+🔴 PROBLÈME 3: Clic sur deal ne fait rien
+───────────────────────────────────────────────────────────────
+SOLUTION:
+1. Vérifier que vous êtes connecté
+2. Ouvrir la console (F12) et chercher les erreurs
+3. Redémarrer le serveur: npm run dev
+4. Vider le cache du navigateur (Ctrl+Shift+Del)
+
+═══════════════════════════════════════════════════════════════
+
+🔴 PROBLÈME 4: Déconnecté après rechargement
+───────────────────────────────────────────────────────────────
+SOLUTION:
+1. Vérifier que FirebaseProvider est dans app/layout.tsx
+2. Redémarrer le serveur
+3. Se reconnecter
+4. Vérifier dans la console: "✅ Utilisateur connecté"
+
+═══════════════════════════════════════════════════════════════
+
+✅ CHECKLIST FIREBASE
+───────────────────────────────────────────────────────────────
+□ Authentication activé (Email/Password)
+□ Firestore Database créé
+□ Storage activé
+□ Règles Firestore en mode test
+□ Collection "campaigns" existe
+□ Au moins une campagne avec status="active"
+
+═══════════════════════════════════════════════════════════════
+
+🚀 COMMANDES UTILES
+───────────────────────────────────────────────────────────────
+# Redémarrer le serveur
+npm run dev
+
+# Vider le cache Next.js
+rm -rf .next
+npm run dev
+
+# Réinstaller les dépendances
+rm -rf node_modules
+npm install
+npm run dev
+
+═══════════════════════════════════════════════════════════════
+
+📞 DEBUG
+───────────────────────────────────────────────────────────────
+1. Ouvrir la console du navigateur (F12)
+2. Chercher les messages:
+   - "✅ X campagne(s) récupérée(s)" = OK
+   - "⚠️ Aucune campagne active" = Vérifier Firestore
+   - Erreurs en rouge = Copier le message complet
+
+3. Vérifier Firebase Console:
+   - Authentication > Users (doit avoir des utilisateurs)
+   - Firestore > campaigns (doit avoir des documents)
+   - Storage (doit être activé)
+
+═══════════════════════════════════════════════════════════════
+
+🎯 ORDRE DES ACTIONS
+───────────────────────────────────────────────────────────────
+1. Activer Authentication dans Firebase Console
+2. Activer Firestore Database
+3. Activer Storage
+4. Créer une campagne de test avec status="active"
+5. Redémarrer le serveur (npm run dev)
+6. Tester l'affichage des deals
+7. Se connecter et cliquer sur un deal
+
+═══════════════════════════════════════════════════════════════

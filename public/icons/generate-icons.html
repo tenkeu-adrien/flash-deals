@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Générateur d'Icônes Flash Deals</title>
+</head>
+<body style="background: #000; color: #fff; font-family: Arial; padding: 20px;">
+    <h1>🔥 Générateur d'Icônes Flash Deals</h1>
+    <p>Cliquez sur "Générer" pour créer toutes les icônes PWA</p>
+    <button onclick="generateIcons()" style="background: #FF6600; color: white; border: none; padding: 15px 30px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;">
+        Générer les Icônes
+    </button>
+    <div id="output" style="margin-top: 20px;"></div>
+
+    <script>
+        function generateIcons() {
+            const sizes = [16, 32, 72, 96, 128, 144, 152, 192, 384, 512];
+            const output = document.getElementById('output');
+            output.innerHTML = '<h3>Icônes générées :</h3>';
+
+            sizes.forEach(size => {
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+
+                // Fond noir
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, size, size);
+
+                // Gradient orange-rouge
+                const gradient = ctx.createLinearGradient(0, 0, size, size);
+                gradient.addColorStop(0, '#FF6600');
+                gradient.addColorStop(1, '#FF3D00');
+                ctx.fillStyle = gradient;
+
+                // Cercle
+                ctx.beginPath();
+                ctx.arc(size / 2, size / 2, size * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Emoji feu
+                ctx.font = `${size * 0.5}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('🔥', size / 2, size / 2);
+
+                // Télécharger
+                canvas.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `icon-${size}x${size}.png`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                });
+
+                output.innerHTML += `<p>✅ icon-${size}x${size}.png créée</p>`;
+            });
+
+            output.innerHTML += '<p style="color: #00C853; font-weight: bold; margin-top: 20px;">✅ Toutes les icônes ont été générées!</p>';
+            output.innerHTML += '<p style="color: #CCCCCC;">Placez-les dans le dossier /icons/</p>';
+        }
+    </script>
+</body>
+</html>

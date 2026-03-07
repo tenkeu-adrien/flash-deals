@@ -92,7 +92,9 @@ export const useClientStore = create<ClientState>()(
       name: 'client-storage',
       partialize: (state) => ({
         preferences: state.preferences,
-        currentPage: state.currentPage
+        currentPage: state.currentPage,
+        isAuthenticated: state.isAuthenticated,
+        user: state.user
       })
     }
   )

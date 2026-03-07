@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useClientStore } from '@/lib/stores/clientStore';
 import { onAuthStateChange, getCurrentUser } from '@/lib/firebase/auth';
 import { onCartChange } from '@/lib/firebase/firestore';
@@ -9,38 +9,45 @@ import { onCartChange } from '@/lib/firebase/firestore';
  * Hook pour gérer l'authentification Firebase
  */
 export function useFirebaseAuth() {
-  const { setUser, setAuthenticated, setCart } = useClientStore();
+  const store = useClientStore();
+  const initialized = useRef(false);
 
   useEffect(() => {
-    // Vérifier que nous sommes côté client
-    if (typeof window === 'undefined') return;
+    // Vérifier que nous sommes côté client et pas déjà initialisé
+    if (typeof window === 'undefined' || initialized.current) return;
+    
+    initialized.current = true;
+    let unsubscribeCart: (() => void) | null = null;
 
     // Écouter les changements d'authentification
     const unsubscribeAuth = onAuthStateChange((user) => {
-      setUser(user);
-      setAuthenticated(!!user);
+      store.setUser(user);
+      store.setAuthenticated(!!user);
 
       if (user) {
         console.log('✅ Utilisateur connecté:', user.uid);
 
         // Écouter les changements du panier
-        const unsubscribeCart = onCartChange((cart) => {
-          setCart(cart);
+        unsubscribeCart = onCartChange((cart) => {
+          store.setCart(cart);
         });
-
-        return () => {
-          unsubscribeCart();
-        };
       } else {
         console.log('❌ Utilisateur déconnecté');
-        setCart([]);
+        store.setCart([]);
+        if (unsubscribeCart) {
+          unsubscribeCart();
+          unsubscribeCart = null;
+        }
       }
     });
 
     return () => {
       unsubscribeAuth();
+      if (unsubscribeCart) {
+        unsubscribeCart();
+      }
     };
-  }, [setUser, setAuthenticated, setCart]);
+  }, []); // Pas de dépendances pour éviter les re-renders
 
   return {
     user: typeof window !== 'undefined' ? getCurrentUser() : null

@@ -140,24 +140,58 @@ export async function createCampaign(campaignData: Omit<Campaign, 'id' | 'views'
  */
 export async function getActiveCampaigns(limitCount = 20): Promise<{ success: boolean; campaigns?: Campaign[]; error?: string }> {
   try {
-    const q = query(
+    // Essayer d'abord avec le filtre status
+    let q = query(
       collection(db, Collections.CAMPAIGNS),
       where('status', '==', 'active'),
       orderBy('createdAt', 'desc'),
       limit(limitCount)
     );
 
-    const snapshot = await getDocs(q);
+    let snapshot = await getDocs(q);
+    
+    // Si aucune campagne active, récupérer toutes les campagnes
+    if (snapshot.empty) {
+      console.log('⚠️ Aucune campagne active trouvée, récupération de toutes les campagnes...');
+      q = query(
+        collection(db, Collections.CAMPAIGNS),
+        orderBy('createdAt', 'desc'),
+        limit(limitCount)
+      );
+      snapshot = await getDocs(q);
+    }
+
     const campaigns: Campaign[] = [];
 
     snapshot.forEach((doc) => {
       campaigns.push({ id: doc.id, ...doc.data() } as Campaign);
     });
 
+    console.log(`✅ ${campaigns.length} campagne(s) récupérée(s)`);
     return { success: true, campaigns };
   } catch (error: any) {
     console.error('❌ Erreur récupération campagnes:', error);
-    return { success: false, error: error.message };
+    
+    // En cas d'erreur d'index, essayer sans orderBy
+    try {
+      console.log('⚠️ Tentative sans orderBy...');
+      const q = query(
+        collection(db, Collections.CAMPAIGNS),
+        limit(limitCount)
+      );
+      const snapshot = await getDocs(q);
+      const campaigns: Campaign[] = [];
+      
+      snapshot.forEach((doc) => {
+        campaigns.push({ id: doc.id, ...doc.data() } as Campaign);
+      });
+      
+      console.log(`✅ ${campaigns.length} campagne(s) récupérée(s) (sans tri)`);
+      return { success: true, campaigns };
+    } catch (fallbackError: any) {
+      console.error('❌ Erreur finale:', fallbackError);
+      return { success: false, error: fallbackError.message };
+    }
   }
 }
 

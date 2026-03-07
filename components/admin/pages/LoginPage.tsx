@@ -1,22 +1,73 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { useAdminStore } from '@/lib/stores/adminStore';
+import { loginWithEmail } from '@/lib/firebase/auth';
 
 interface LoginPageProps {
   onNavigate: (page: string) => void;
 }
 
 export default function LoginPage({ onNavigate }: LoginPageProps) {
-  const { setAuthenticated } = useAdminStore();
+  const { setAuthenticated, setAdmin } = useAdminStore();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setAuthenticated(true);
-    onNavigate('dashboard');
+    setLoading(true);
+    setError('');
+
+    try {
+      // Connexion Firebase
+      const result = await loginWithEmail(email, password);
+      
+      if (!result.success || !result.user) {
+        throw new Error(result.error || 'Erreur de connexion');
+      }
+
+      // Vérifier si l'utilisateur est admin dans Firestore
+      const { doc, getDoc } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase/config');
+      
+      const adminDoc = await getDoc(doc(db, 'admins', result.user.uid));
+      
+      if (!adminDoc.exists()) {
+        // Pas un admin
+        setError('❌ Accès refusé: Vous n\'êtes pas administrateur.\n\nCette interface est réservée aux administrateurs Flash Deals.');
+        
+        // Déconnecter l'utilisateur
+        const { logoutUser } = await import('@/lib/firebase/auth');
+        await logoutUser();
+        
+        setLoading(false);
+        return;
+      }
+
+      // C'est un admin, on peut continuer
+      const adminData = adminDoc.data();
+      
+      setAdmin({
+        uid: result.user.uid,
+        name: adminData.name || result.user.displayName || 'Admin',
+        email: result.user.email || '',
+        role: adminData.role || 'admin'
+      });
+      
+      setAuthenticated(true);
+      onNavigate('dashboard');
+      
+    } catch (err: any) {
+      console.error('Erreur connexion admin:', err);
+      setError(err.message || 'Erreur de connexion');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -34,10 +85,29 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
           <p className="text-sm text-gray-medium">Connexion sécurisée</p>
         </div>
 
+        {error && (
+          <div className="mb-4 p-4 bg-red-500/10 border border-red-500 rounded-lg text-red-500 text-sm whitespace-pre-line">
+            {error}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
-          <Input label="Email administrateur" type="email" placeholder="admin@flashdeals.cm" required />
-          <Input label="Mot de passe" type="password" placeholder="••••••••" required />
-          <Input label="Code 2FA (si activé)" type="text" placeholder="000000" maxLength={6} />
+          <Input 
+            label="Email administrateur" 
+            type="email" 
+            placeholder="admin@flashdeals.cm" 
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required 
+          />
+          <Input 
+            label="Mot de passe" 
+            type="password" 
+            placeholder="••••••••" 
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required 
+          />
 
           <div className="mb-6">
             <label className="flex items-center gap-2 cursor-pointer">
@@ -46,8 +116,8 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
             </label>
           </div>
 
-          <Button type="submit" variant="primary" size="block">
-            SE CONNECTER
+          <Button type="submit" variant="primary" size="block" disabled={loading}>
+            {loading ? 'Connexion...' : 'SE CONNECTER'}
           </Button>
         </form>
 
@@ -57,7 +127,7 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
 
         <div className="mt-6 text-center text-xs text-gray-medium space-y-1">
           <p>🔒 Connexion sécurisée SSL</p>
-          <p>📱 Authentification 2FA requise</p>
+          <p>⚠️ Accès réservé aux administrateurs</p>
         </div>
       </motion.div>
     </div>

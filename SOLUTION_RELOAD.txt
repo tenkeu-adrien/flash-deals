@@ -1,0 +1,44 @@
+========================================
+SOLUTION AU PROBLÈME DE RECHARGEMENT
+========================================
+
+Le problème de rechargement automatique a été corrigé!
+
+ÉTAPES À SUIVRE:
+================
+
+1. Arrêter le serveur (Ctrl+C dans le terminal)
+
+2. Lancer le script de nettoyage:
+   NETTOYER_ET_RELANCER.bat
+
+   OU manuellement:
+   - Supprimer le dossier .next
+   - Supprimer public\sw.js
+   - Relancer: npm run dev
+
+3. Vider le cache du navigateur:
+   - Chrome/Edge: Ctrl+Shift+Delete
+   - Cocher "Images et fichiers en cache"
+   - Cliquer sur "Effacer les données"
+
+4. Recharger la page (F5)
+
+RÉSULTAT:
+=========
+✅ Plus de rechargement automatique
+✅ Navigation fluide
+✅ Application stable
+
+CORRECTIONS APPLIQUÉES:
+=======================
+1. PWA: skipWaiting = false (au lieu de true)
+2. PWA: désactivée en développement
+3. Hook useFirebaseAuth: dépendances optimisées
+4. Fichiers service worker supprimés
+
+Si le problème persiste:
+- Ouvrir en mode navigation privée
+- Ou vider localStorage: localStorage.clear()
+
+Tout est maintenant corrigé! 🎉

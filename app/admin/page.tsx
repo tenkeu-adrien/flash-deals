@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAdminStore } from '@/lib/stores/adminStore';
 import LoginPage from '@/components/admin/pages/LoginPage';

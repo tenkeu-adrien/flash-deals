@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Créer Icônes PWA - Flash Deals</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #000;
+            color: #fff;
+        }
+        h1 { color: #FF6600; }
+        .canvas-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .canvas-item {
+            text-align: center;
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        canvas {
+            border: 2px solid #333;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        button {
+            background: #FF6600;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+        }
+        button:hover {
+            background: #E65500;
+        }
+        .info {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #FF6600;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔥 Générateur d'Icônes PWA - Flash Deals</h1>
+    
+    <div class="info">
+        <h3>📋 Instructions:</h3>
+        <ol>
+            <li>Clique sur "Générer toutes les icônes"</li>
+            <li>Télécharge chaque icône en cliquant sur "Télécharger"</li>
+            <li>Place les fichiers dans le dossier <code>/icons/</code></li>
+            <li>Lance le serveur: <code>npm run dev</code></li>
+            <li>Ouvre <code>http://localhost:3000</code></li>
+        </ol>
+    </div>
+
+    <button onclick="generateAllIcons()" style="font-size: 18px; padding: 15px 30px;">
+        🎨 Générer toutes les icônes
+    </button>
+
+    <div id="canvasContainer" class="canvas-container"></div>
+
+    <script>
+        const sizes = [16, 32, 72, 96, 128, 144, 152, 192, 384, 512];
+
+        function createIcon(size) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            // Fond noir
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, size, size);
+
+            // Cercle orange dégradé
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#FF6600');
+            gradient.addColorStop(1, '#FF3D00');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(size / 2, size / 2, size * 0.35, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Emoji flamme
+            ctx.font = `${size * 0.5}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🔥', size / 2, size / 2);
+
+            return canvas;
+        }
+
+        function generateAllIcons() {
+            const container = document.getElementById('canvasContainer');
+            container.innerHTML = '';
+
+            sizes.forEach(size => {
+                const canvas = createIcon(size);
+                
+                const item = document.createElement('div');
+                item.className = 'canvas-item';
+                
+                const title = document.createElement('h3');
+                title.textContent = `${size}x${size}`;
+                title.style.color = '#FF6600';
+                
+                const downloadBtn = document.createElement('button');
+                downloadBtn.textContent = '⬇️ Télécharger';
+                downloadBtn.onclick = () => downloadIcon(canvas, size);
+                
+                item.appendChild(title);
+                item.appendChild(canvas);
+                item.appendChild(downloadBtn);
+                container.appendChild(item);
+            });
+
+            console.log('✅ Toutes les icônes générées!');
+        }
+
+        function downloadIcon(canvas, size) {
+            const link = document.createElement('a');
+            link.download = `icon-${size}x${size}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            console.log(`✅ Téléchargé: icon-${size}x${size}.png`);
+        }
+
+        // Générer automatiquement au chargement
+        window.onload = () => {
+            console.log('🔥 Générateur d\'icônes PWA chargé');
+            generateAllIcons();
+        };
+    </script>
+</body>
+</html>

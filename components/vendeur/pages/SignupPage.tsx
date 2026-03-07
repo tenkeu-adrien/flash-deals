@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { useVendorStore } from '@/lib/stores/vendorStore';
 import { signupWithEmail } from '@/lib/firebase/auth';
-import { createVendorProfile } from '@/lib/firebase/firestore';
+import { createVendorProfile, getVendorProfile } from '@/lib/firebase/firestore';
 import { uploadCompressedImage } from '@/lib/firebase/storage';
 
 interface SignupPageProps {
@@ -32,6 +32,39 @@ export default function SignupPage({ onNavigate }: SignupPageProps) {
   const [registreFile, setRegistreFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [checkingStatus, setCheckingStatus] = useState(true);
+
+  // Vérifier si l'utilisateur est déjà vendeur
+  useEffect(() => {
+    checkExistingVendor();
+  }, []);
+
+  const checkExistingVendor = async () => {
+    const { getCurrentUserId } = await import('@/lib/firebase/auth');
+    const userId = getCurrentUserId();
+    
+    if (userId) {
+      const result = await getVendorProfile(userId);
+      if (result.success && result.vendor) {
+        // Si déjà vendeur, afficher un message et rediriger
+        if (result.vendor.status === 'pending') {
+          alert('⏳ Vous avez déjà soumis une demande de partenariat.\n\nVotre demande est en cours de validation par notre équipe.\n\nVous recevrez un email dès que votre compte sera validé.');
+          onNavigate('landing');
+          return;
+        } else if (result.vendor.status === 'active') {
+          alert('✅ Vous êtes déjà partenaire Flash Deals!\n\nVous allez être redirigé vers votre dashboard.');
+          onNavigate('dashboard');
+          return;
+        } else if (result.vendor.status === 'rejected') {
+          alert('❌ Votre précédente demande a été rejetée.\n\nContactez le support à support@flashdeals.cm pour plus d\'informations avant de soumettre une nouvelle demande.');
+          onNavigate('landing');
+          return;
+        }
+      }
+    }
+    
+    setCheckingStatus(false);
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -54,26 +87,12 @@ export default function SignupPage({ onNavigate }: SignupPageProps) {
 
     try {
       // Validation
-      if (!formData.email || !formData.password || !formData.fullName) {
+      if (!formData.businessName || !formData.fullName) {
         throw new Error('Veuillez remplir tous les champs obligatoires');
-      }
-
-      if (formData.password.length < 8) {
-        throw new Error('Le mot de passe doit contenir au moins 8 caractères');
       }
 
       if (!cniFile) {
         throw new Error('La CNI est obligatoire');
-      }
-
-      // Créer le compte utilisateur
-      const authResult = await signupWithEmail(formData.email, formData.password, {
-        displayName: formData.fullName,
-        phoneNumber: formData.phone
-      });
-      
-      if (!authResult.success) {
-        throw new Error(authResult.error || 'Erreur lors de la création du compte');
       }
 
       // Upload des documents
@@ -94,27 +113,76 @@ export default function SignupPage({ onNavigate }: SignupPageProps) {
         }
       }
 
-      // Créer le profil vendeur
-      const vendorData = {
-        businessName: formData.businessName,
-        email: formData.email,
-        phone: formData.phone,
-        address: `${formData.address}, ${formData.city}`,
-        description: formData.description || `${formData.businessType} à ${formData.city}`,
-        cniUrl,
-        registreUrl,
-        businessType: formData.businessType,
-        city: formData.city
-      };
-
-      const profileResult = await createVendorProfile(vendorData);
+      // Vérifier si l'utilisateur est déjà connecté
+      const { getCurrentUser } = await import('@/lib/firebase/auth');
+      const currentUser = getCurrentUser();
       
-      if (!profileResult.success) {
-        throw new Error(profileResult.error || 'Erreur lors de la création du profil');
-      }
+      if (currentUser) {
+        // L'utilisateur est déjà connecté, juste créer le profil vendeur
+        const vendorData = {
+          businessName: formData.businessName,
+          email: currentUser.email || formData.email,
+          phone: formData.phone,
+          address: `${formData.address}, ${formData.city}`,
+          description: formData.description || `${formData.businessType} à ${formData.city}`,
+          cniUrl,
+          registreUrl,
+          businessType: formData.businessType,
+          city: formData.city
+        };
 
-      // Passer à l'étape de confirmation
-      setSignupStep(4);
+        const profileResult = await createVendorProfile(vendorData);
+        
+        if (!profileResult.success) {
+          throw new Error(profileResult.error || 'Erreur lors de la création du profil');
+        }
+
+        // Passer à l'étape de confirmation
+        setSignupStep(4);
+      } else {
+        // Créer un nouveau compte
+        if (!formData.email || !formData.password) {
+          throw new Error('Email et mot de passe requis');
+        }
+
+        if (formData.password.length < 8) {
+          throw new Error('Le mot de passe doit contenir au moins 8 caractères');
+        }
+
+        const authResult = await signupWithEmail(formData.email, formData.password, {
+          displayName: formData.fullName,
+          phoneNumber: formData.phone
+        });
+        
+        if (!authResult.success) {
+          if (authResult.error?.includes('email-already-in-use')) {
+            throw new Error('Cet email est déjà utilisé. Veuillez vous connecter d\'abord.');
+          }
+          throw new Error(authResult.error || 'Erreur lors de la création du compte');
+        }
+
+        // Créer le profil vendeur
+        const vendorData = {
+          businessName: formData.businessName,
+          email: formData.email,
+          phone: formData.phone,
+          address: `${formData.address}, ${formData.city}`,
+          description: formData.description || `${formData.businessType} à ${formData.city}`,
+          cniUrl,
+          registreUrl,
+          businessType: formData.businessType,
+          city: formData.city
+        };
+
+        const profileResult = await createVendorProfile(vendorData);
+        
+        if (!profileResult.success) {
+          throw new Error(profileResult.error || 'Erreur lors de la création du profil');
+        }
+
+        // Passer à l'étape de confirmation
+        setSignupStep(4);
+      }
       
     } catch (err: any) {
       setError(err.message || 'Une erreur est survenue');
@@ -157,6 +225,16 @@ export default function SignupPage({ onNavigate }: SignupPageProps) {
     
     nextSignupStep();
   };
+
+  // Afficher un loader pendant la vérification
+  if (checkingStatus) {
+    return (
+      <div className="max-w-[600px] mx-auto px-6 py-8 text-center">
+        <div className="text-6xl mb-4">⏳</div>
+        <p className="text-gray-medium">Vérification de votre statut...</p>
+      </div>
+    );
+  }
 
   const steps = ['Informations', 'Entreprise', 'Documents', 'Validation'];
 
