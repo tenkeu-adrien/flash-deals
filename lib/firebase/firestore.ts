@@ -76,6 +76,19 @@ export interface Order {
   updatedAt: any;
 }
 
+export interface OrderItem {
+  id?: string;
+  orderId: string;
+  campaignId: string;
+  vendorId: string;
+  title: string;
+  image?: string;
+  unitPrice: number;
+  quantity: number;
+  totalPrice: number;
+  createdAt: any;
+}
+
 export interface CartItem {
   id?: string;
   userId: string;
@@ -102,6 +115,128 @@ export interface Notification {
   type: 'info' | 'success' | 'warning' | 'error';
   read: boolean;
   createdAt: any;
+}
+
+// ============================================
+// AVIS / REVIEWS
+// ============================================
+
+/**
+ * Ajouter ou mettre à jour un avis pour une campagne (1 avis par utilisateur et par campagne)
+ */
+export async function addReview(
+  campaignId: string,
+  rating: number,
+  comment: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const userId = getCurrentUserId();
+    if (!userId) throw new Error('Utilisateur non connecté');
+    if (!campaignId) throw new Error('Campagne invalide');
+    if (!rating || rating < 1 || rating > 5) throw new Error('Note invalide (1 à 5)');
+
+    const trimmedComment = comment.trim();
+    if (!trimmedComment) throw new Error('Le commentaire est obligatoire');
+
+    // 1) Enregistrer / mettre à jour l'avis (id stable: campaignId_userId)
+    const reviewId = `${campaignId}_${userId}`;
+    await setDoc(
+      doc(db, Collections.REVIEWS, reviewId),
+      {
+        campaignId,
+        userId,
+        rating,
+        comment: trimmedComment,
+        createdAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+
+    // 2) Recalculer la moyenne et le nombre d'avis pour la campagne
+    const q = query(
+      collection(db, Collections.REVIEWS),
+      where('campaignId', '==', campaignId),
+      limit(200)
+    );
+
+    const snapshot = await getDocs(q);
+    let totalRating = 0;
+    let count = 0;
+
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data() as Review;
+      if (typeof data.rating === 'number') {
+        totalRating += data.rating;
+        count += 1;
+      }
+    });
+
+    if (count > 0) {
+      const averageRating = totalRating / count;
+      await updateDoc(doc(db, Collections.CAMPAIGNS, campaignId), {
+        averageRating,
+        reviewCount: count,
+        updatedAt: serverTimestamp()
+      });
+    }
+
+    console.log('✅ Avis enregistré');
+    return { success: true };
+  } catch (error: any) {
+    console.error('❌ Erreur ajout avis:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Obtenir les avis d'une campagne
+ */
+export async function getCampaignReviews(
+  campaignId: string,
+  limitCount = 20
+): Promise<{ success: boolean; reviews?: Review[]; error?: string }> {
+  try {
+    if (!campaignId) throw new Error('Campagne invalide');
+
+    const q = query(
+      collection(db, Collections.REVIEWS),
+      where('campaignId', '==', campaignId),
+      orderBy('createdAt', 'desc'),
+      limit(limitCount)
+    );
+
+    const snapshot = await getDocs(q);
+    const reviews: Review[] = [];
+
+    snapshot.forEach((docSnap) => {
+      reviews.push({ id: docSnap.id, ...docSnap.data() } as Review);
+    });
+
+    return { success: true, reviews };
+  } catch (error: any) {
+    console.error('❌ Erreur récupération avis:', error);
+
+    // Fallback sans orderBy (si index manquant)
+    try {
+      const q = query(
+        collection(db, Collections.REVIEWS),
+        where('campaignId', '==', campaignId),
+        limit(limitCount)
+      );
+
+      const snapshot = await getDocs(q);
+      const reviews: Review[] = [];
+
+      snapshot.forEach((docSnap) => {
+        reviews.push({ id: docSnap.id, ...docSnap.data() } as Review);
+      });
+
+      console.warn('⚠️ getCampaignReviews: fallback sans orderBy (index manquant?)');
+      return { success: true, reviews };
+    } catch (fallbackError: any) {
+      return { success: false, error: fallbackError.message || error.message };
+    }
+  }
 }
 
 // ============================================
@@ -136,11 +271,10 @@ export async function createCampaign(campaignData: Omit<Campaign, 'id' | 'views'
 }
 
 /**
- * Obtenir toutes les campagnes actives
+ * Obtenir toutes les campagnes actives (non expirées)
  */
 export async function getActiveCampaigns(limitCount = 20): Promise<{ success: boolean; campaigns?: Campaign[]; error?: string }> {
   try {
-    // Essayer d'abord avec le filtre status
     let q = query(
       collection(db, Collections.CAMPAIGNS),
       where('status', '==', 'active'),
@@ -162,12 +296,23 @@ export async function getActiveCampaigns(limitCount = 20): Promise<{ success: bo
     }
 
     const campaigns: Campaign[] = [];
+    const now = new Date();
 
     snapshot.forEach((doc) => {
-      campaigns.push({ id: doc.id, ...doc.data() } as Campaign);
+      const campaign = { id: doc.id, ...doc.data() } as Campaign;
+      
+      // Filtrer les campagnes expirées
+      const endDate = campaign.endDate instanceof Timestamp 
+        ? campaign.endDate.toDate() 
+        : new Date(campaign.endDate);
+      
+      // N'ajouter que les campagnes non expirées
+      if (endDate > now) {
+        campaigns.push(campaign);
+      }
     });
 
-    console.log(`✅ ${campaigns.length} campagne(s) récupérée(s)`);
+    console.log(`✅ ${campaigns.length} campagne(s) active(s) et non expirée(s) récupérée(s)`);
     return { success: true, campaigns };
   } catch (error: any) {
     console.error('❌ Erreur récupération campagnes:', error);
@@ -181,9 +326,20 @@ export async function getActiveCampaigns(limitCount = 20): Promise<{ success: bo
       );
       const snapshot = await getDocs(q);
       const campaigns: Campaign[] = [];
+      const now = new Date();
       
       snapshot.forEach((doc) => {
-        campaigns.push({ id: doc.id, ...doc.data() } as Campaign);
+        const campaign = { id: doc.id, ...doc.data() } as Campaign;
+        
+        // Filtrer les campagnes expirées
+        const endDate = campaign.endDate instanceof Timestamp 
+          ? campaign.endDate.toDate() 
+          : new Date(campaign.endDate);
+        
+        // N'ajouter que les campagnes actives et non expirées
+        if (campaign.status === 'active' && endDate > now) {
+          campaigns.push(campaign);
+        }
       });
       
       console.log(`✅ ${campaigns.length} campagne(s) récupérée(s) (sans tri)`);
@@ -261,7 +417,12 @@ export async function markAsInterested(campaignId: string): Promise<{ success: b
 // ============================================
 
 /**
- * Créer une commande
+ * Créer une commande (écrit dans `orders`)
+ *
+ * IMPORTANT:
+ * - On n'essaie PAS de modifier `campaigns` ici (stock/sold) car les règles Firestore interdisent
+ *   normalement aux clients de faire `update` sur `campaigns`. La mise à jour du stock doit être
+ *   gérée côté admin/vendor ou via une Cloud Function.
  */
 export async function createOrder(orderData: Omit<Order, 'id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<{ success: boolean; orderId?: string; error?: string }> {
   try {
@@ -277,18 +438,77 @@ export async function createOrder(orderData: Omit<Order, 'id' | 'userId' | 'crea
       updatedAt: serverTimestamp()
     });
 
-    // Mettre à jour le stock de la campagne
-    if (orderData.campaignId) {
-      await updateDoc(doc(db, Collections.CAMPAIGNS, orderData.campaignId), {
-        sold: increment(orderData.quantity),
-        stock: increment(-orderData.quantity)
-      });
-    }
-
     console.log('✅ Commande créée:', docRef.id);
     return { success: true, orderId: docRef.id };
   } catch (error: any) {
     console.error('❌ Erreur création commande:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Créer une commande + 1 item (écrit dans `orders` et `orders/{orderId}/items/{itemId}`)
+ * Utile pour avoir des "order items" visibles dans Firestore.
+ */
+export async function createOrderWithItem(params: {
+  campaign: Pick<Campaign, 'id' | 'vendorId' | 'title' | 'images' | 'currentPrice'>;
+  quantity: number;
+  deliveryAddress: Order['deliveryAddress'];
+  paymentMethod?: string;
+}): Promise<{ success: boolean; orderId?: string; error?: string }> {
+  try {
+    const userId = getCurrentUserId();
+    if (!userId) throw new Error('Utilisateur non connecté');
+    if (!params.campaign?.id) throw new Error('Campagne invalide');
+    if (!params.campaign.vendorId) throw new Error('vendorId manquant sur la campagne');
+    if (!params.quantity || params.quantity < 1) throw new Error('Quantité invalide');
+
+    const totalPrice = (params.campaign.currentPrice || 0) * params.quantity;
+
+    // 1) Créer la commande (sans champs `undefined`)
+    const orderPayload: any = {
+      campaignId: params.campaign.id,
+      vendorId: params.campaign.vendorId,
+      quantity: params.quantity,
+      totalPrice,
+      deliveryAddress: params.deliveryAddress,
+      userId,
+      status: 'pending',
+      paymentStatus: 'pending',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+
+    if (params.paymentMethod) {
+      orderPayload.paymentMethod = params.paymentMethod;
+    }
+
+    const orderDocRef = await addDoc(collection(db, Collections.ORDERS), orderPayload);
+    const orderId = orderDocRef.id;
+
+    // 2) Créer l'item (subcollection)
+    const itemPayload: any = {
+      orderId,
+      campaignId: params.campaign.id,
+      vendorId: params.campaign.vendorId,
+      title: params.campaign.title || 'Produit',
+      unitPrice: params.campaign.currentPrice || 0,
+      quantity: params.quantity,
+      totalPrice,
+      createdAt: serverTimestamp()
+    };
+
+    const firstImage = params.campaign.images?.[0];
+    if (firstImage) {
+      itemPayload.image = firstImage;
+    }
+
+    // itemId stable par campagne (1 commande = 1 item dans notre design)
+    await setDoc(doc(db, Collections.ORDERS, orderId, 'items', params.campaign.id), itemPayload, { merge: true });
+
+    return { success: true, orderId };
+  } catch (error: any) {
+    console.error('❌ Erreur création commande + item:', error);
     return { success: false, error: error.message };
   }
 }
@@ -317,7 +537,28 @@ export async function getUserOrders(userId?: string): Promise<{ success: boolean
     return { success: true, orders };
   } catch (error: any) {
     console.error('❌ Erreur récupération commandes:', error);
-    return { success: false, error: error.message };
+    // Fallback (souvent nécessaire si l'index composite n'existe pas encore)
+    try {
+      const uid = userId || getCurrentUserId();
+      if (!uid) throw new Error('Utilisateur non connecté');
+
+      const q = query(
+        collection(db, Collections.ORDERS),
+        where('userId', '==', uid),
+        limit(100)
+      );
+
+      const snapshot = await getDocs(q);
+      const orders: Order[] = [];
+      snapshot.forEach((doc) => {
+        orders.push({ id: doc.id, ...doc.data() } as Order);
+      });
+
+      console.warn('⚠️ getUserOrders: fallback sans orderBy (index manquant?)');
+      return { success: true, orders };
+    } catch (fallbackError: any) {
+      return { success: false, error: fallbackError.message || error.message };
+    }
   }
 }
 
@@ -645,7 +886,29 @@ export async function getVendorOrders(vendorId?: string): Promise<{ success: boo
     return { success: true, orders };
   } catch (error: any) {
     console.error('❌ Erreur récupération commandes vendeur:', error);
-    return { success: false, error: error.message };
+    // Fallback (souvent nécessaire si l'index composite n'existe pas encore)
+    try {
+      const uid = vendorId || getCurrentUserId();
+      if (!uid) throw new Error('ID vendeur requis');
+
+      const q = query(
+        collection(db, Collections.ORDERS),
+        where('vendorId', '==', uid),
+        limit(100)
+      );
+
+      const snapshot = await getDocs(q);
+      const orders: Order[] = [];
+
+      snapshot.forEach((doc) => {
+        orders.push({ id: doc.id, ...doc.data() } as Order);
+      });
+
+      console.warn('⚠️ getVendorOrders: fallback sans orderBy (index manquant?)');
+      return { success: true, orders };
+    } catch (fallbackError: any) {
+      return { success: false, error: fallbackError.message || error.message };
+    }
   }
 }
 
@@ -748,6 +1011,12 @@ export async function approveVendor(vendorId: string): Promise<{ success: boolea
     await updateDoc(doc(db, Collections.VENDORS, vendorId), {
       status: 'active',
       approvedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    // IMPORTANT: mettre à jour le rôle dans `users` pour que les règles (isVendor) fonctionnent
+    await updateDoc(doc(db, Collections.USERS, vendorId), {
+      role: 'vendor',
       updatedAt: serverTimestamp()
     });
 
@@ -856,5 +1125,39 @@ export async function getGlobalStats(): Promise<{ success: boolean; stats?: any;
   } catch (error: any) {
     console.error('❌ Erreur récupération statistiques:', error);
     return { success: false, error: error.message };
+  }
+}
+
+// ============================================
+// HEALTH CHECK FIREBASE / BACKEND
+// ============================================
+
+/**
+ * Vérifie rapidement que Firestore répond correctement.
+ * Utilisé côté admin pour rassurer que le backend est OK.
+ */
+export async function checkFirebaseHealth(): Promise<{
+  success: boolean;
+  details?: {
+    campaignsReachable: boolean;
+    ordersReachable: boolean;
+  };
+  error?: string;
+}> {
+  try {
+    // Essayer de lire une campagne et une commande (sans forcer qu'il y en ait)
+    await getDocs(query(collection(db, Collections.CAMPAIGNS), limit(1)));
+    await getDocs(query(collection(db, Collections.ORDERS), limit(1)));
+
+    return {
+      success: true,
+      details: {
+        campaignsReachable: true,
+        ordersReachable: true
+      }
+    };
+  } catch (error: any) {
+    console.error('❌ Firebase health check error:', error);
+    return { success: false, error: error.message || 'Erreur inconnue' };
   }
 }

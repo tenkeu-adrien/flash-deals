@@ -3,6 +3,7 @@ import withPWA from 'next-pwa';
 
 const nextConfig: NextConfig = {
   /* config options here */
+  turbopack: {}, // Silence Turbopack warning for webpack config from next-pwa
 };
 
 export default withPWA({

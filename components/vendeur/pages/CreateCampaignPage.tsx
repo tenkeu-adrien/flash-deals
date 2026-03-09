@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { createCampaign } from '@/lib/firebase/firestore';
@@ -13,6 +13,8 @@ interface CreateCampaignPageProps {
 }
 
 export default function CreateCampaignPage({ onNavigate }: CreateCampaignPageProps) {
+  const [vendorStatus, setVendorStatus] = useState<'pending' | 'active' | 'rejected' | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(true);
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     title: '',
@@ -33,6 +35,36 @@ export default function CreateCampaignPage({ onNavigate }: CreateCampaignPagePro
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+
+  // Vérifier le statut du vendeur au chargement
+  useEffect(() => {
+    checkVendorStatus();
+  }, []);
+
+  const checkVendorStatus = async () => {
+    const vendorId = getCurrentUserId();
+    if (!vendorId) {
+      setVendorStatus(null);
+      setCheckingStatus(false);
+      return;
+    }
+
+    try {
+      const { getVendorProfile } = await import('@/lib/firebase/firestore');
+      const result = await getVendorProfile(vendorId);
+      
+      if (result.success && result.vendor) {
+        setVendorStatus(result.vendor.status);
+      } else {
+        setVendorStatus(null);
+      }
+    } catch (error) {
+      console.error('Erreur vérification statut:', error);
+      setVendorStatus(null);
+    }
+    
+    setCheckingStatus(false);
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -146,7 +178,7 @@ export default function CreateCampaignPage({ onNavigate }: CreateCampaignPagePro
         delivery: formData.delivery,
         location: formData.location,
         vendorId,
-        status: 'pending', // En attente de validation admin
+        status: 'pending' as const, // En attente de validation admin
         startDate: Timestamp.fromDate(new Date(formData.startDate)),
         endDate: Timestamp.fromDate(new Date(formData.endDate)),
         createdAt: Timestamp.now(),
@@ -190,6 +222,51 @@ export default function CreateCampaignPage({ onNavigate }: CreateCampaignPagePro
   return (
     <div className="min-h-screen bg-bg-dark text-white">
       <div className="max-w-4xl mx-auto p-6">
+        {/* Vérification du statut */}
+        {checkingStatus ? (
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">⏳</div>
+            <p>Vérification de votre statut...</p>
+          </div>
+        ) : vendorStatus === 'pending' ? (
+          <div className="text-center py-12 bg-bg-medium rounded-xl p-8 border-2 border-yellow">
+            <div className="text-8xl mb-6">⏳</div>
+            <h2 className="text-2xl font-bold mb-4">Demande en cours de validation</h2>
+            <p className="text-gray-medium mb-6 max-w-md mx-auto">
+              Votre demande de partenariat est en cours de validation par notre équipe.
+              <br /><br />
+              Vous pourrez créer des campagnes dès que votre compte sera validé (généralement sous 24-48h).
+            </p>
+            <Button variant="secondary" onClick={() => onNavigate('dashboard')}>
+              Retour au dashboard
+            </Button>
+          </div>
+        ) : vendorStatus === 'rejected' ? (
+          <div className="text-center py-12 bg-bg-medium rounded-xl p-8 border-2 border-red">
+            <div className="text-8xl mb-6">❌</div>
+            <h2 className="text-2xl font-bold mb-4">Demande rejetée</h2>
+            <p className="text-gray-medium mb-6">
+              Votre demande de partenariat a été rejetée.
+              <br /><br />
+              Contactez notre support à support@flashdeals.cm pour plus d'informations.
+            </p>
+            <Button variant="secondary" onClick={() => onNavigate('landing')}>
+              Retour
+            </Button>
+          </div>
+        ) : vendorStatus !== 'active' ? (
+          <div className="text-center py-12 bg-bg-medium rounded-xl p-8 border-2 border-gray-700">
+            <div className="text-8xl mb-6">🔒</div>
+            <h2 className="text-2xl font-bold mb-4">Accès non autorisé</h2>
+            <p className="text-gray-medium mb-6">
+              Vous devez d'abord devenir partenaire pour créer des campagnes.
+            </p>
+            <Button variant="primary" onClick={() => onNavigate('signup')}>
+              Devenir partenaire
+            </Button>
+          </div>
+        ) : (
+          <>
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex justify-between mb-2">
@@ -506,6 +583,8 @@ export default function CreateCampaignPage({ onNavigate }: CreateCampaignPagePro
             </div>
           )}
         </form>
+          </>
+        )}
       </div>
     </div>
   );

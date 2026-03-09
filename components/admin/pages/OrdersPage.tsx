@@ -1,36 +1,51 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import AdminSidebar from '@/components/admin/Sidebar';
 import Button from '@/components/ui/Button';
+import { getAllOrders, Order } from '@/lib/firebase/firestore';
 
 interface OrdersPageProps {
   onNavigate: (page: string) => void;
 }
 
 export default function OrdersPage({ onNavigate }: OrdersPageProps) {
-  const orders = [
-    { id: 12345, customer: 'Marie Ngo', product: 'Samsung Galaxy A54', amount: 145000, status: 'delivered', date: '2026-02-28' },
-    { id: 12344, customer: 'Jean Kamga', product: 'Nike Air Max 90', amount: 45000, status: 'shipping', date: '2026-02-27' },
-    { id: 12343, customer: 'Fatima B.', product: 'Sony WH-1000XM4', amount: 85000, status: 'pending', date: '2026-02-27' },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState<Order[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      const res = await getAllOrders();
+      if (res.success && res.orders) {
+        setOrders(res.orders);
+      }
+      setLoading(false);
+    };
+    load();
+  }, []);
 
   const getStatusBadge = (status: string) => {
-    const styles = {
+    const styles: Record<string, string> = {
       delivered: 'bg-green/20 text-green',
-      shipping: 'bg-blue/20 text-blue',
+      shipped: 'bg-blue/20 text-blue',
+      confirmed: 'bg-blue/20 text-blue',
       pending: 'bg-yellow/20 text-yellow',
-      cancelled: 'bg-red/20 text-red',
+      cancelled: 'bg-red/20 text-red'
     };
-    const labels = {
+    const labels: Record<string, string> = {
       delivered: 'Livré',
-      shipping: 'En cours',
+      shipped: 'Expédié',
+      confirmed: 'Confirmé',
       pending: 'En attente',
-      cancelled: 'Annulé',
+      cancelled: 'Annulé'
     };
+    const cls = styles[status] || 'bg-yellow/20 text-yellow';
+    const label = labels[status] || status;
     return (
-      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${styles[status as keyof typeof styles]}`}>
-        {labels[status as keyof typeof labels]}
+      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${cls}`}>
+        {label}
       </span>
     );
   };
@@ -38,63 +53,99 @@ export default function OrdersPage({ onNavigate }: OrdersPageProps) {
   return (
     <div className="flex">
       <AdminSidebar currentPage="orders" onNavigate={onNavigate} />
-      
+
       <div className="flex-1 ml-[260px]">
         <header className="bg-bg-medium border-b border-[#333] px-8 py-4">
           <h1 className="text-2xl font-bold mb-1">Gestion des Commandes</h1>
-          <p className="text-sm text-gray-medium">{orders.length} commandes récentes</p>
+          <p className="text-sm text-gray-medium">
+            {loading ? 'Chargement des commandes...' : `${orders.length} commandes récentes`}
+          </p>
         </header>
 
         <div className="p-8">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-bg-card">
-                  <th className="px-4 py-4 text-left border-b border-[#333] text-[13px] text-gray-medium uppercase tracking-wider font-semibold">
-                    Commande
-                  </th>
-                  <th className="px-4 py-4 text-left border-b border-[#333] text-[13px] text-gray-medium uppercase tracking-wider font-semibold">
-                    Client
-                  </th>
-                  <th className="px-4 py-4 text-left border-b border-[#333] text-[13px] text-gray-medium uppercase tracking-wider font-semibold">
-                    Produit
-                  </th>
-                  <th className="px-4 py-4 text-left border-b border-[#333] text-[13px] text-gray-medium uppercase tracking-wider font-semibold">
-                    Montant
-                  </th>
-                  <th className="px-4 py-4 text-left border-b border-[#333] text-[13px] text-gray-medium uppercase tracking-wider font-semibold">
-                    Statut
-                  </th>
-                  <th className="px-4 py-4 text-left border-b border-[#333] text-[13px] text-gray-medium uppercase tracking-wider font-semibold">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders.map((order, index) => (
-                  <motion.tr
-                    key={order.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="hover:bg-bg-card transition-colors border-b border-[#333]"
-                  >
-                    <td className="px-4 py-4">
-                      <div className="font-bold">#{order.id}</div>
-                      <div className="text-xs text-gray-medium">{order.date}</div>
-                    </td>
-                    <td className="px-4 py-4">{order.customer}</td>
-                    <td className="px-4 py-4">{order.product}</td>
-                    <td className="px-4 py-4 font-bold text-orange">{order.amount.toLocaleString()} XAF</td>
-                    <td className="px-4 py-4">{getStatusBadge(order.status)}</td>
-                    <td className="px-4 py-4">
-                      <Button variant="secondary" size="small">Détails</Button>
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {loading ? (
+            <div className="text-center py-12 text-gray-medium">
+              <div className="text-4xl mb-4">⏳</div>
+              <p>Chargement des commandes...</p>
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="text-center py-12 text-gray-medium">
+              <p>Aucune commande trouvée pour le moment.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-bg-card">
+                    <th className="px-4 py-4 text-left border-b border-[#333] text-[13px] text-gray-medium uppercase tracking-wider font-semibold">
+                      Commande
+                    </th>
+                    <th className="px-4 py-4 text-left border-b border-[#333] text-[13px] text-gray-medium uppercase tracking-wider font-semibold">
+                      Client
+                    </th>
+                    <th className="px-4 py-4 text-left border-b border-[#333] text-[13px] text-gray-medium uppercase tracking-wider font-semibold">
+                      Vendeur
+                    </th>
+                    <th className="px-4 py-4 text-left border-b border-[#333] text-[13px] text-gray-medium uppercase tracking-wider font-semibold">
+                      Montant
+                    </th>
+                    <th className="px-4 py-4 text-left border-b border-[#333] text-[13px] text-gray-medium uppercase tracking-wider font-semibold">
+                      Statut
+                    </th>
+                    <th className="px-4 py-4 text-left border-b border-[#333] text-[13px] text-gray-medium uppercase tracking-wider font-semibold">
+                      Paiement
+                    </th>
+                    <th className="px-4 py-4 text-left border-b border-[#333] text-[13px] text-gray-medium uppercase tracking-wider font-semibold">
+                      Date
+                    </th>
+                    <th className="px-4 py-4 text-left border-b border-[#333] text-[13px] text-gray-medium uppercase tracking-wider font-semibold">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map((order, index) => {
+                    const created =
+                      (order.createdAt as any)?.toDate?.() || new Date(order.createdAt);
+                    return (
+                      <motion.tr
+                        key={order.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.03 }}
+                        className="hover:bg-bg-card transition-colors border-b border-[#333]"
+                      >
+                        <td className="px-4 py-4">
+                          <div className="font-bold">#{(order.id || '').toString().substring(0, 8)}</div>
+                        </td>
+                        <td className="px-4 py-4 text-sm">{order.userId?.substring(0, 8) || 'N/A'}</td>
+                        <td className="px-4 py-4 text-sm">
+                          {order.vendorId?.substring(0, 8) || 'N/A'}
+                        </td>
+                        <td className="px-4 py-4 font-bold text-orange">
+                          {(order.totalPrice || 0).toLocaleString()} XAF
+                        </td>
+                        <td className="px-4 py-4">
+                          {getStatusBadge(order.status || 'pending')}
+                        </td>
+                        <td className="px-4 py-4 text-sm">
+                          {order.paymentStatus || 'pending'}
+                        </td>
+                        <td className="px-4 py-4 text-sm">
+                          {created?.toLocaleDateString('fr-FR') || 'N/A'}
+                        </td>
+                        <td className="px-4 py-4">
+                          <Button variant="secondary" size="small">
+                            Détails
+                          </Button>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </div>

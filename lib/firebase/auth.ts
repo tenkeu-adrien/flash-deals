@@ -17,7 +17,7 @@ import {
   UserCredential
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, Collections } from './config';
+import { auth, db, Collections, getFirebaseAuth, getFirebaseDb } from './config';
 
 // ============================================
 // TYPES
@@ -58,8 +58,9 @@ export async function signupWithEmail(
   additionalData?: Partial<UserData>
 ): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
+    const firebaseAuth = getFirebaseAuth();
     // Créer l'utilisateur
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const userCredential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
     const user = userCredential.user;
 
     // Envoyer email de vérification
@@ -70,7 +71,7 @@ export async function signupWithEmail(
       uid: user.uid,
       email: email,
       displayName: additionalData?.displayName || email.split('@')[0],
-      photoURL: additionalData?.photoURL || null,
+      photoURL: additionalData?.photoURL || undefined,
       role: 'client',
       status: 'active',
       emailVerified: false,
@@ -79,7 +80,7 @@ export async function signupWithEmail(
       ...additionalData
     };
 
-    await setDoc(doc(db, Collections.USERS, user.uid), userData);
+    await setDoc(doc(getFirebaseDb(), Collections.USERS, user.uid), userData);
 
     console.log('✅ Inscription réussie:', user.uid);
     return { success: true, user };
@@ -94,12 +95,13 @@ export async function signupWithEmail(
  */
 export async function signupWithGoogle(): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
+    const firebaseAuth = getFirebaseAuth();
     const provider = new GoogleAuthProvider();
-    const result = await signInWithPopup(auth, provider);
+    const result = await signInWithPopup(firebaseAuth, provider);
     const user = result.user;
 
     // Vérifier si le profil existe déjà
-    const userDoc = await getDoc(doc(db, Collections.USERS, user.uid));
+    const userDoc = await getDoc(doc(getFirebaseDb(), Collections.USERS, user.uid));
 
     if (!userDoc.exists()) {
       // Créer le profil
@@ -107,7 +109,7 @@ export async function signupWithGoogle(): Promise<{ success: boolean; user?: Use
         uid: user.uid,
         email: user.email || '',
         displayName: user.displayName || 'Utilisateur',
-        photoURL: user.photoURL || null,
+        photoURL: user.photoURL || undefined,
         role: 'client',
         status: 'active',
         emailVerified: user.emailVerified,
@@ -115,10 +117,10 @@ export async function signupWithGoogle(): Promise<{ success: boolean; user?: Use
         updatedAt: serverTimestamp()
       };
 
-      await setDoc(doc(db, Collections.USERS, user.uid), userData);
+      await setDoc(doc(getFirebaseDb(), Collections.USERS, user.uid), userData);
     } else {
       // Mettre à jour la dernière connexion
-      await updateDoc(doc(db, Collections.USERS, user.uid), {
+      await updateDoc(doc(getFirebaseDb(), Collections.USERS, user.uid), {
         lastLoginAt: serverTimestamp()
       });
     }
@@ -136,12 +138,13 @@ export async function signupWithGoogle(): Promise<{ success: boolean; user?: Use
  */
 export async function signupWithFacebook(): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
+    const firebaseAuth = getFirebaseAuth();
     const provider = new FacebookAuthProvider();
-    const result = await signInWithPopup(auth, provider);
+    const result = await signInWithPopup(firebaseAuth, provider);
     const user = result.user;
 
     // Vérifier si le profil existe déjà
-    const userDoc = await getDoc(doc(db, Collections.USERS, user.uid));
+    const userDoc = await getDoc(doc(getFirebaseDb(), Collections.USERS, user.uid));
 
     if (!userDoc.exists()) {
       // Créer le profil
@@ -149,7 +152,7 @@ export async function signupWithFacebook(): Promise<{ success: boolean; user?: U
         uid: user.uid,
         email: user.email || '',
         displayName: user.displayName || 'Utilisateur',
-        photoURL: user.photoURL || null,
+        photoURL: user.photoURL || undefined,
         role: 'client',
         status: 'active',
         emailVerified: user.emailVerified,
@@ -157,10 +160,10 @@ export async function signupWithFacebook(): Promise<{ success: boolean; user?: U
         updatedAt: serverTimestamp()
       };
 
-      await setDoc(doc(db, Collections.USERS, user.uid), userData);
+      await setDoc(doc(getFirebaseDb(), Collections.USERS, user.uid), userData);
     } else {
       // Mettre à jour la dernière connexion
-      await updateDoc(doc(db, Collections.USERS, user.uid), {
+      await updateDoc(doc(getFirebaseDb(), Collections.USERS, user.uid), {
         lastLoginAt: serverTimestamp()
       });
     }
@@ -185,11 +188,12 @@ export async function loginWithEmail(
   password: string
 ): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const firebaseAuth = getFirebaseAuth();
+    const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password);
     const user = userCredential.user;
 
     // Mettre à jour la dernière connexion
-    await updateDoc(doc(db, Collections.USERS, user.uid), {
+    await updateDoc(doc(getFirebaseDb(), Collections.USERS, user.uid), {
       lastLoginAt: serverTimestamp()
     });
 
@@ -220,7 +224,8 @@ export const loginWithFacebook = signupWithFacebook;
  */
 export async function logout(): Promise<{ success: boolean; error?: string }> {
   try {
-    await signOut(auth);
+    const firebaseAuth = getFirebaseAuth();
+    await signOut(firebaseAuth);
     console.log('✅ Déconnexion réussie');
     return { success: true };
   } catch (error: any) {
@@ -238,7 +243,8 @@ export async function logout(): Promise<{ success: boolean; error?: string }> {
  */
 export async function resetPassword(email: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await sendPasswordResetEmail(auth, email);
+    const firebaseAuth = getFirebaseAuth();
+    await sendPasswordResetEmail(firebaseAuth, email);
     console.log('✅ Email de réinitialisation envoyé');
     return { success: true };
   } catch (error: any) {
@@ -276,7 +282,7 @@ export async function getUserProfile(userId?: string): Promise<{ success: boolea
     const uid = userId || auth.currentUser?.uid;
     if (!uid) throw new Error('Utilisateur non connecté');
 
-    const docSnap = await getDoc(doc(db, Collections.USERS, uid));
+    const docSnap = await getDoc(doc(getFirebaseDb(), Collections.USERS, uid));
 
     if (docSnap.exists()) {
       return { success: true, profile: docSnap.data() as UserData };
@@ -297,7 +303,7 @@ export async function updateUserProfile(data: Partial<UserData>): Promise<{ succ
     const uid = auth.currentUser?.uid;
     if (!uid) throw new Error('Utilisateur non connecté');
 
-    await updateDoc(doc(db, Collections.USERS, uid), {
+    await updateDoc(doc(getFirebaseDb(), Collections.USERS, uid), {
       ...data,
       updatedAt: serverTimestamp()
     });
@@ -344,3 +350,5 @@ export function isUserLoggedIn(): boolean {
   if (typeof window === 'undefined' || !auth) return false;
   return auth.currentUser !== null;
 }
+
+

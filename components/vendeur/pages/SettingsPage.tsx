@@ -167,9 +167,9 @@ export default function SettingsPage({ onNavigate }: SettingsPageProps) {
                             id="logo-upload"
                           />
                           <label htmlFor="logo-upload">
-                            <Button variant="secondary" size="small" as="span">
+                            <span className="btn btn-secondary">
                               Changer la photo
-                            </Button>
+                            </span>
                           </label>
                           <p className="text-xs text-gray-medium mt-1">JPG, PNG max 2MB</p>
                         </div>

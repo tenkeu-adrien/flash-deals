@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import AdminSidebar from '@/components/admin/Sidebar';
 import Button from '@/components/ui/Button';
-import { BarChart3, TrendingUp, Users, ShoppingCart, Eye, Download, Calendar } from 'lucide-react';
+import { BarChart3, Users, ShoppingCart, Eye, Download, Calendar } from 'lucide-react';
 import { getGlobalStats } from '@/lib/firebase/firestore';
 
 interface AnalyticsPageProps {
@@ -15,6 +15,8 @@ export default function AnalyticsPage({ onNavigate }: AnalyticsPageProps) {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
   const [period, setPeriod] = useState('month');
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
 
   useEffect(() => {
     loadAnalytics();
@@ -26,51 +28,88 @@ export default function AnalyticsPage({ onNavigate }: AnalyticsPageProps) {
     if (result.success && result.stats) {
       setStats(result.stats);
     }
+    
+    // Charger les campagnes pour les top campagnes
+    const { getActiveCampaigns, getAllOrders } = await import('@/lib/firebase/firestore');
+    const campaignsResult = await getActiveCampaigns(100);
+    if (campaignsResult.success && campaignsResult.campaigns) {
+      setCampaigns(campaignsResult.campaigns);
+    }
+    
+    // Charger les commandes pour les statistiques
+    const ordersResult = await getAllOrders();
+    if (ordersResult.success && ordersResult.orders) {
+      setOrders(ordersResult.orders);
+    }
+    
     setLoading(false);
   };
 
-  const analyticsMetrics = [
-    {
-      label: 'Visiteurs Uniques',
-      value: '45,234',
-      change: '+18.2%',
-      positive: true,
-      icon: Users,
-      color: 'from-blue-500 to-cyan-600'
-    },
-    {
-      label: 'Pages Vues',
-      value: '128,456',
-      change: '+12.5%',
-      positive: true,
-      icon: Eye,
-      color: 'from-purple-500 to-pink-600'
-    },
-    {
-      label: 'Taux de Conversion',
-      value: '8.7%',
-      change: '+2.3%',
-      positive: true,
-      icon: TrendingUp,
-      color: 'from-green-500 to-emerald-600'
-    },
-    {
-      label: 'Panier Moyen',
-      value: '36,600 FCFA',
-      change: '+5.8%',
-      positive: true,
-      icon: ShoppingCart,
-      color: 'from-orange to-red'
-    }
-  ];
+  // Métriques simples basées sur les vraies stats (sans pourcentages fictifs)
+  const analyticsMetrics = stats
+    ? [
+        {
+          label: 'Utilisateurs',
+          value: stats.totalUsers?.toLocaleString?.() || stats.totalUsers || '0',
+          icon: Users,
+          color: 'from-blue-500 to-cyan-600'
+        },
+        {
+          label: 'Commandes',
+          value: stats.totalOrders?.toLocaleString?.() || stats.totalOrders || '0',
+          icon: ShoppingCart,
+          color: 'from-green-500 to-emerald-600'
+        },
+        {
+          label: 'Campagnes actives',
+          value: stats.activeCampaigns?.toString() || '0',
+          icon: Eye,
+          color: 'from-purple-500 to-pink-600'
+        },
+        {
+          label: 'Revenu Total',
+          value: `${(stats.totalRevenue || 0).toLocaleString()} FCFA`,
+          icon: ShoppingCart,
+          color: 'from-orange to-red'
+        }
+      ]
+    : [
+        {
+          label: 'Utilisateurs',
+          value: '0',
+          icon: Users,
+          color: 'from-blue-500 to-cyan-600'
+        },
+        {
+          label: 'Commandes',
+          value: '0',
+          icon: ShoppingCart,
+          color: 'from-green-500 to-emerald-600'
+        },
+        {
+          label: 'Campagnes actives',
+          value: '0',
+          icon: Eye,
+          color: 'from-purple-500 to-pink-600'
+        },
+        {
+          label: 'Revenu Total',
+          value: '0 FCFA',
+          icon: ShoppingCart,
+          color: 'from-orange to-red'
+        }
+      ];
 
-  const topCampaigns = [
-    { name: 'iPhone 15 Pro Max', views: 12500, sales: 45, revenue: 22500000 },
-    { name: 'Samsung Galaxy S24', views: 9800, sales: 38, revenue: 15200000 },
-    { name: 'MacBook Air M2', views: 8200, sales: 25, revenue: 18750000 },
-    { name: 'AirPods Pro 2', views: 7500, sales: 52, revenue: 7800000 },
-    { name: 'PlayStation 5', views: 6800, sales: 18, revenue: 9000000 }
-  ];
+  // Top campagnes basées sur les vraies données
+  const topCampaigns = campaigns
+    .sort((a, b) => (b.views || 0) - (a.views || 0))
+    .slice(0, 5)
+    .map(c => ({
+      name: c.title || 'Sans titre',
+      views: c.views || 0,
+      sales: c.sold || 0,
+      revenue: (c.sold || 0) * (c.currentPrice || 0)
+    }));
 
   const topCategories = [
     { name: 'Électronique', percentage: 45, color: 'bg-blue-500' },
@@ -144,14 +183,12 @@ export default function AnalyticsPage({ onNavigate }: AnalyticsPageProps) {
                   transition={{ delay: index * 0.05 }}
                   className="bg-bg-medium rounded-lg p-6 border border-[#333] relative overflow-hidden"
                 >
-                  <div className={`absolute top-0 right-0 w-20 h-20 bg-gradient-to-br ${metric.color} opacity-10 rounded-full -mr-10 -mt-10`} />
+                  <div
+                    className={`absolute top-0 right-0 w-20 h-20 bg-gradient-to-br ${metric.color} opacity-10 rounded-full -mr-10 -mt-10`}
+                  />
                   <div className="flex items-start justify-between mb-4">
                     <div className={`p-3 rounded-lg bg-gradient-to-br ${metric.color}`}>
                       <Icon size={20} className="text-white" />
-                    </div>
-                    <div className={`text-[13px] flex items-center gap-1 ${metric.positive ? 'text-green' : 'text-red'}`}>
-                      <TrendingUp size={16} />
-                      {metric.change}
                     </div>
                   </div>
                   <div className="text-[13px] text-gray-medium mb-1">{metric.label}</div>
@@ -181,162 +218,71 @@ export default function AnalyticsPage({ onNavigate }: AnalyticsPageProps) {
           </div>
 
           <div className="grid grid-cols-2 gap-6 mb-8">
-            {/* Top Campagnes */}
             <div className="bg-bg-medium rounded-lg p-6 border border-[#333]">
               <h2 className="text-lg font-bold mb-6">Top Campagnes</h2>
-              <div className="space-y-4">
-                {topCampaigns.map((campaign, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="flex items-center justify-between p-3 bg-bg-dark rounded-lg"
-                  >
-                    <div className="flex-1">
-                      <div className="font-semibold mb-1">{campaign.name}</div>
-                      <div className="flex gap-4 text-xs text-gray-medium">
-                        <span>{campaign.views.toLocaleString()} vues</span>
-                        <span>{campaign.sales} ventes</span>
+              {topCampaigns.length === 0 ? (
+                <div className="text-center py-8 text-gray-medium">
+                  <p>Aucune campagne pour le moment</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {topCampaigns.map((campaign, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="flex items-center justify-between p-3 bg-bg-dark rounded-lg"
+                    >
+                      <div className="flex-1">
+                        <div className="font-semibold mb-1">{campaign.name}</div>
+                        <div className="flex gap-4 text-xs text-gray-medium">
+                          <span>{campaign.views.toLocaleString()} vues</span>
+                          <span>{campaign.sales} ventes</span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-orange">{(campaign.revenue / 1000000).toFixed(1)}M</div>
-                      <div className="text-xs text-gray-medium">FCFA</div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
+                      <div className="text-right">
+                        <div className="font-bold text-orange">{(campaign.revenue / 1000).toFixed(0)}K</div>
+                        <div className="text-xs text-gray-medium">FCFA</div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Sources de Trafic */}
+            {/* Statistiques simples */}
             <div className="bg-bg-medium rounded-lg p-6 border border-[#333]">
-              <h2 className="text-lg font-bold mb-6">Sources de Trafic</h2>
+              <h2 className="text-lg font-bold mb-6">Statistiques</h2>
               <div className="space-y-4">
-                {trafficSources.map((source, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                  >
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm">{source.source}</span>
-                      <span className="text-sm font-bold">{source.visits.toLocaleString()}</span>
-                    </div>
-                    <div className="w-full h-2 bg-bg-dark rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-orange to-red transition-all duration-500"
-                        style={{ width: `${source.percentage}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-gray-medium mt-1">{source.percentage}%</div>
-                  </motion.div>
-                ))}
+                <div className="text-center py-8 text-gray-medium">
+                  <p>Statistiques détaillées disponibles prochainement</p>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Catégories Populaires */}
+          {/* Statistiques Basiques */}
           <div className="bg-bg-medium rounded-lg p-6 border border-[#333] mb-8">
-            <h2 className="text-lg font-bold mb-6">Catégories Populaires</h2>
-            <div className="grid grid-cols-5 gap-4">
-              {topCategories.map((category, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="text-center"
-                >
-                  <div className="relative w-24 h-24 mx-auto mb-3">
-                    <svg className="w-full h-full transform -rotate-90">
-                      <circle
-                        cx="48"
-                        cy="48"
-                        r="40"
-                        stroke="#333"
-                        strokeWidth="8"
-                        fill="none"
-                      />
-                      <circle
-                        cx="48"
-                        cy="48"
-                        r="40"
-                        stroke="currentColor"
-                        strokeWidth="8"
-                        fill="none"
-                        strokeDasharray={`${category.percentage * 2.51} 251`}
-                        className={category.color.replace('bg-', 'text-')}
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-xl font-bold">{category.percentage}%</span>
-                    </div>
-                  </div>
-                  <div className="text-sm font-semibold">{category.name}</div>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-
-          {/* Statistiques Détaillées */}
-          <div className="grid grid-cols-3 gap-6">
-            <div className="bg-bg-medium rounded-lg p-6 border border-[#333]">
-              <h3 className="text-lg font-bold mb-4">Comportement Utilisateur</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-medium">Durée moyenne session</span>
-                  <span className="font-bold">5m 32s</span>
+            <h2 className="text-lg font-bold mb-6">Résumé</h2>
+            <div className="grid grid-cols-3 gap-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange mb-1">
+                  {stats ? stats.totalCampaigns : '0'}
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-medium">Pages par session</span>
-                  <span className="font-bold">4.2</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-medium">Taux de rebond</span>
-                  <span className="font-bold text-orange">32.5%</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-medium">Nouveaux visiteurs</span>
-                  <span className="font-bold text-green">68%</span>
-                </div>
+                <div className="text-sm text-gray-medium">Campagnes totales</div>
               </div>
-            </div>
-
-            <div className="bg-bg-medium rounded-lg p-6 border border-[#333]">
-              <h3 className="text-lg font-bold mb-4">Appareils</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-medium">Mobile</span>
-                  <span className="font-bold">72%</span>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green mb-1">
+                  {stats ? stats.totalOrders : '0'}
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-medium">Desktop</span>
-                  <span className="font-bold">23%</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-medium">Tablette</span>
-                  <span className="font-bold">5%</span>
-                </div>
+                <div className="text-sm text-gray-medium">Commandes totales</div>
               </div>
-            </div>
-
-            <div className="bg-bg-medium rounded-lg p-6 border border-[#333]">
-              <h3 className="text-lg font-bold mb-4">Localisation</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-medium">Douala</span>
-                  <span className="font-bold">58%</span>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-500 mb-1">
+                  {stats ? stats.totalUsers : '0'}
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-medium">Yaoundé</span>
-                  <span className="font-bold">35%</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-medium">Autres</span>
-                  <span className="font-bold">7%</span>
-                </div>
+                <div className="text-sm text-gray-medium">Utilisateurs</div>
               </div>
             </div>
           </div>

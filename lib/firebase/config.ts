@@ -76,7 +76,8 @@ export const Collections = {
   CART: 'cart',
   REVIEWS: 'reviews',
   NOTIFICATIONS: 'notifications',
-  ANALYTICS: 'analytics'
+  ANALYTICS: 'analytics',
+  ADMINS: 'admins' // Collection pour les administrateurs
 } as const;
 
 // Getters sécurisés

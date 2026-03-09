@@ -1,6 +1,6 @@
 'use client';
 
-import { LayoutDashboard, Users, Store, Megaphone, Package, DollarSign, BarChart3, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, Store, Megaphone, Package, DollarSign, BarChart3, Settings, MessageSquare, UserCog, CreditCard, FileText } from 'lucide-react';
 
 interface SidebarProps {
   currentPage: string;
@@ -18,6 +18,7 @@ export default function AdminSidebar({ currentPage, onNavigate }: SidebarProps) 
       items: [
         { id: 'clients', icon: Users, label: 'Clients' },
         { id: 'vendors', icon: Store, label: 'Commerçants' },
+        { id: 'managers', icon: UserCog, label: 'Managers' },
       ],
     },
     {
@@ -25,13 +26,22 @@ export default function AdminSidebar({ currentPage, onNavigate }: SidebarProps) 
       items: [
         { id: 'campaigns', icon: Megaphone, label: 'Campagnes' },
         { id: 'orders', icon: Package, label: 'Commandes' },
-        { id: 'finances', icon: DollarSign, label: 'Finances' },
+        { id: 'order-management', icon: Package, label: 'Gestion Commandes' },
+        { id: 'chats', icon: MessageSquare, label: 'Chats Clients' },
       ],
     },
     {
-      title: 'Analytics',
+      title: 'Finances',
       items: [
-        { id: 'analytics', icon: BarChart3, label: 'Rapports' },
+        { id: 'finances', icon: DollarSign, label: 'Finances' },
+        { id: 'vendor-reports', icon: FileText, label: 'Rapports Vendeurs' },
+      ],
+    },
+    {
+      title: 'Configuration',
+      items: [
+        { id: 'payment-settings', icon: CreditCard, label: 'Paiements' },
+        { id: 'analytics', icon: BarChart3, label: 'Analytics' },
         { id: 'settings', icon: Settings, label: 'Paramètres' },
       ],
     },

@@ -5,13 +5,15 @@ import Button from '@/components/ui/Button';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { getFirebaseDb, Collections } from '@/lib/firebase/config';
 import { getCurrentUserId } from '@/lib/firebase/auth';
+import type { Campaign } from '@/lib/firebase/firestore';
 
 interface DashboardPageProps {
   onNavigate: (page: string) => void;
 }
 
 export default function DashboardPage({ onNavigate }: DashboardPageProps) {
-  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [vendorStatus, setVendorStatus] = useState<'pending' | 'active' | 'rejected' | null>(null);
   const [stats, setStats] = useState({
     totalCampaigns: 0,
     activeCampaigns: 0,
@@ -31,6 +33,14 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
     try {
       const db = getFirebaseDb();
       
+      // Vérifier le statut du vendeur
+      const { getVendorProfile } = await import('@/lib/firebase/firestore');
+      const vendorResult = await getVendorProfile(vendorId);
+      
+      if (vendorResult.success && vendorResult.vendor) {
+        setVendorStatus(vendorResult.vendor.status);
+      }
+      
       // Charger les campagnes du vendeur
       const campaignsQuery = query(
         collection(db, Collections.CAMPAIGNS),
@@ -41,7 +51,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
       const campaignsData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      }));
+      })) as Campaign[];
 
       setCampaigns(campaignsData);
 
@@ -90,6 +100,83 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
       <div style={{ textAlign: 'center', padding: '40px' }}>
         <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
         <p>Chargement...</p>
+      </div>
+    );
+  }
+
+  // Afficher un message si le vendeur n'est pas encore validé
+  if (vendorStatus === 'pending') {
+    return (
+      <div style={{ padding: 'var(--spacing-lg)' }}>
+        <div style={{
+          textAlign: 'center',
+          padding: '60px 20px',
+          backgroundColor: '#1a1a1a',
+          borderRadius: '12px',
+          border: '2px solid var(--color-yellow)'
+        }}>
+          <div style={{ fontSize: '80px', marginBottom: '24px' }}>⏳</div>
+          <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '16px' }}>
+            Demande en cours de validation
+          </h2>
+          <p style={{ color: 'var(--color-gray-medium)', marginBottom: '24px', maxWidth: '500px', margin: '0 auto' }}>
+            Votre demande de partenariat est en cours de validation par notre équipe.
+            <br /><br />
+            Vous recevrez un email dès que votre compte sera validé (généralement sous 24-48h).
+            <br /><br />
+            Une fois validé, vous pourrez créer vos campagnes et commencer à vendre !
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (vendorStatus === 'rejected') {
+    return (
+      <div style={{ padding: 'var(--spacing-lg)' }}>
+        <div style={{
+          textAlign: 'center',
+          padding: '60px 20px',
+          backgroundColor: '#1a1a1a',
+          borderRadius: '12px',
+          border: '2px solid var(--color-red)'
+        }}>
+          <div style={{ fontSize: '80px', marginBottom: '24px' }}>❌</div>
+          <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '16px' }}>
+            Demande rejetée
+          </h2>
+          <p style={{ color: 'var(--color-gray-medium)', marginBottom: '24px' }}>
+            Votre demande de partenariat a été rejetée.
+            <br /><br />
+            Contactez notre support à support@flashdeals.cm pour plus d'informations.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Afficher le dashboard normal seulement si le statut est 'active'
+  if (vendorStatus !== 'active') {
+    return (
+      <div style={{ padding: 'var(--spacing-lg)' }}>
+        <div style={{
+          textAlign: 'center',
+          padding: '60px 20px',
+          backgroundColor: '#1a1a1a',
+          borderRadius: '12px',
+          border: '2px solid #333'
+        }}>
+          <div style={{ fontSize: '80px', marginBottom: '24px' }}>🔒</div>
+          <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '16px' }}>
+            Accès non autorisé
+          </h2>
+          <p style={{ color: 'var(--color-gray-medium)', marginBottom: '24px' }}>
+            Vous devez d'abord devenir partenaire pour accéder à cette section.
+          </p>
+          <Button onClick={() => onNavigate('signup')} variant="primary">
+            Devenir partenaire
+          </Button>
+        </div>
       </div>
     );
   }

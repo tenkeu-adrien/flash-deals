@@ -17,6 +17,7 @@ import ProductPage from '@/components/client/pages/ProductPage';
 import CartPage from '@/components/client/pages/CartPage';
 import ProfilePage from '@/components/client/pages/ProfilePage';
 import NotificationsPage from '@/components/client/pages/NotificationsPage';
+import NewCheckoutPage from '@/components/client/pages/NewCheckoutPage';
 
 export default function ClientApp() {
   const { currentPage, setCurrentPage, isAuthenticated } = useClientStore();
@@ -43,6 +44,8 @@ export default function ClientApp() {
         return <ProductPage onNavigate={setCurrentPage} />;
       case 'cart':
         return <CartPage onNavigate={setCurrentPage} />;
+      case 'checkout':
+        return <NewCheckoutPage />;
       case 'profile':
         return <ProfilePage onNavigate={setCurrentPage} />;
       case 'notifications':
@@ -54,7 +57,7 @@ export default function ClientApp() {
 
   return (
     <div className="max-w-[480px] mx-auto bg-[#000000] min-h-screen relative overflow-x-hidden">
-      {currentPage !== 'otp' && currentPage !== 'profile-setup' && currentPage !== 'tutorial' && (
+      {currentPage !== 'otp' && currentPage !== 'profile-setup' && currentPage !== 'tutorial' && currentPage !== 'checkout' && (
         <Header onNavigate={setCurrentPage} />
       )}
       

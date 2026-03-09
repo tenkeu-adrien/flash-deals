@@ -2,7 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import Button from '@/components/ui/Button';
-import { getCampaign, Campaign, addToCart, markAsInterested } from '@/lib/firebase/firestore';
+import {
+  getCampaign,
+  Campaign,
+  addToCart,
+  markAsInterested,
+  addReview,
+  getCampaignReviews,
+  Review
+} from '@/lib/firebase/firestore';
 import { useClientStore } from '@/lib/stores/clientStore';
 
 interface ProductPageProps {
@@ -14,6 +22,11 @@ export default function ProductPage({ onNavigate }: ProductPageProps) {
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [addingToCart, setAddingToCart] = useState(false);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(true);
+  const [newRating, setNewRating] = useState(5);
+  const [newComment, setNewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
   const { user, selectedCampaignId } = useClientStore();
 
   useEffect(() => {
@@ -28,8 +41,19 @@ export default function ProductPage({ onNavigate }: ProductPageProps) {
     const result = await getCampaign(selectedCampaignId);
     if (result.success && result.campaign) {
       setCampaign(result.campaign);
+      // Charger les avis pour cette campagne
+      loadReviews(result.campaign.id!);
     }
     setLoading(false);
+  };
+
+  const loadReviews = async (campaignId: string) => {
+    setLoadingReviews(true);
+    const res = await getCampaignReviews(campaignId, 20);
+    if (res.success && res.reviews) {
+      setReviews(res.reviews);
+    }
+    setLoadingReviews(false);
   };
 
   const handleAddToCart = async () => {
@@ -71,6 +95,43 @@ export default function ProductPage({ onNavigate }: ProductPageProps) {
     
     return `${hours}h ${minutes}min`;
   };
+
+  const handleSubmitReview = async () => {
+    if (!campaign?.id) return;
+
+    if (!user) {
+      alert('Vous devez être connecté pour laisser un avis.');
+      onNavigate('login');
+      return;
+    }
+
+    if (!newComment.trim()) {
+      alert('Veuillez écrire un avis.');
+      return;
+    }
+
+    setSubmittingReview(true);
+    const res = await addReview(campaign.id, newRating, newComment.trim());
+
+    if (res.success) {
+      setNewComment('');
+      // Recharger les avis et la campagne (pour mettre à jour la moyenne)
+      await loadReviews(campaign.id);
+      await loadCampaign();
+      alert('✅ Merci pour votre avis !');
+    } else {
+      alert('❌ ' + (res.error || 'Erreur lors de l\'envoi de votre avis'));
+    }
+
+    setSubmittingReview(false);
+  };
+
+  const computedAverage =
+    reviews.length > 0
+      ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length
+      : campaign?.averageRating || 0;
+
+  const totalReviews = reviews.length || campaign?.reviewCount || 0;
 
   if (loading) {
     return (
@@ -171,7 +232,7 @@ export default function ProductPage({ onNavigate }: ProductPageProps) {
         </h1>
 
         <div style={{ color: '#FFD700', fontSize: '14px', marginBottom: 'var(--spacing-md)' }}>
-          ⭐⭐⭐⭐⭐ {campaign.averageRating || 4.8}/5 ({campaign.reviewCount || 0} avis)
+          ⭐⭐⭐⭐⭐ {computedAverage ? computedAverage.toFixed(1) : '4.8'}/5 ({totalReviews} avis)
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-md)' }}>
@@ -338,6 +399,144 @@ export default function ProductPage({ onNavigate }: ProductPageProps) {
         >
           ⭐ Je suis intéressé ({campaign.interested} personnes)
         </button>
+
+        {/* Avis clients */}
+        <div
+          style={{
+            marginTop: 'var(--spacing-lg)',
+            paddingTop: 'var(--spacing-lg)',
+            borderTop: '1px solid #333'
+          }}
+        >
+          <h3 style={{ fontSize: '18px', marginBottom: 'var(--spacing-md)' }}>💬 Avis des clients</h3>
+
+          {/* Formulaire d'avis */}
+          <div
+            style={{
+              backgroundColor: '#1a1a1a',
+              padding: 'var(--spacing-md)',
+              borderRadius: 'var(--border-radius)',
+              border: '1px solid #333',
+              marginBottom: 'var(--spacing-md)'
+            }}
+          >
+            <p style={{ fontSize: '14px', marginBottom: 'var(--spacing-sm)' }}>
+              Notez ce produit et laissez un avis.
+            </p>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 'var(--spacing-sm)' }}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setNewRating(star)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '22px',
+                    color: newRating >= star ? '#FFD700' : '#555'
+                  }}
+                >
+                  ★
+                </button>
+              ))}
+              <span style={{ fontSize: '14px', color: 'var(--color-gray-medium)' }}>
+                {newRating}/5
+              </span>
+            </div>
+
+            <textarea
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Partagez votre expérience avec ce produit..."
+              rows={3}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '8px',
+                border: '1px solid #333',
+                backgroundColor: '#0a0a0a',
+                color: 'white',
+                fontSize: '14px',
+                marginBottom: 'var(--spacing-sm)',
+                resize: 'vertical'
+              }}
+            />
+
+            <Button
+              onClick={handleSubmitReview}
+              variant="primary"
+              size="block"
+              disabled={submittingReview}
+            >
+              {submittingReview ? '⏳ Envoi de votre avis...' : 'Envoyer mon avis'}
+            </Button>
+          </div>
+
+          {/* Liste des avis */}
+          {loadingReviews ? (
+            <p style={{ fontSize: '14px', color: 'var(--color-gray-medium)' }}>Chargement des avis...</p>
+          ) : reviews.length === 0 ? (
+            <p style={{ fontSize: '14px', color: 'var(--color-gray-medium)' }}>
+              Aucun avis pour le moment. Soyez le premier à donner votre avis !
+            </p>
+          ) : (
+            <div style={{ display: 'grid', gap: 'var(--spacing-sm)' }}>
+              {reviews.map((review) => {
+                const date =
+                  (review.createdAt as any)?.toDate
+                    ? (review.createdAt as any).toDate()
+                    : new Date(review.createdAt);
+
+                return (
+                  <div
+                    key={review.id}
+                    style={{
+                      backgroundColor: '#1a1a1a',
+                      padding: 'var(--spacing-sm)',
+                      borderRadius: '8px',
+                      border: '1px solid #333'
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '4px'
+                      }}
+                    >
+                      <div style={{ color: '#FFD700', fontSize: '14px' }}>
+                        {'★'.repeat(review.rating)}{' '}
+                        <span style={{ color: 'var(--color-gray-medium)' }}>
+                          {'☆'.repeat(5 - review.rating)}
+                        </span>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          color: 'var(--color-gray-medium)'
+                        }}
+                      >
+                        {date.toLocaleDateString('fr-FR')}
+                      </span>
+                    </div>
+                    <p
+                      style={{
+                        fontSize: '14px',
+                        color: 'var(--color-gray-light)',
+                        lineHeight: 1.5
+                      }}
+                    >
+                      {review.comment}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       <div style={{ height: '80px' }}></div>

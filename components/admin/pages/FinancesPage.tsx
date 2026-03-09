@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import AdminSidebar from '@/components/admin/Sidebar';
 import Button from '@/components/ui/Button';
-import { DollarSign, TrendingUp, TrendingDown, Download, Calendar } from 'lucide-react';
-import { getAllOrders, getGlobalStats } from '@/lib/firebase/firestore';
+import { DollarSign, Download, Calendar } from 'lucide-react';
+import { getAllOrders, getGlobalStats, checkFirebaseHealth } from '@/lib/firebase/firestore';
 
 interface FinancesPageProps {
   onNavigate: (page: string) => void;
@@ -16,6 +16,8 @@ export default function FinancesPage({ onNavigate }: FinancesPageProps) {
   const [stats, setStats] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [period, setPeriod] = useState('month');
+  const [healthStatus, setHealthStatus] = useState<'idle' | 'checking' | 'ok' | 'error'>('idle');
+  const [healthMessage, setHealthMessage] = useState<string>('');
 
   useEffect(() => {
     loadFinances();
@@ -43,34 +45,28 @@ export default function FinancesPage({ onNavigate }: FinancesPageProps) {
     {
       label: 'Revenu Total',
       value: stats ? `${(stats.totalRevenue || 0).toLocaleString()} FCFA` : '0 FCFA',
-      change: '+12.5%',
-      positive: true,
       icon: DollarSign,
       color: 'from-green-500 to-emerald-600'
     },
     {
-      label: 'Commissions',
-      value: stats ? `${((stats.totalRevenue || 0) * 0.15).toLocaleString()} FCFA` : '0 FCFA',
-      change: '+8.2%',
-      positive: true,
-      icon: TrendingUp,
+      label: 'Transactions',
+      value: stats ? stats.totalOrders : '0',
+      icon: DollarSign,
+      color: 'from-orange to-red'
+    },
+    {
+      label: 'Panier moyen',
+      value: stats && stats.totalOrders > 0
+        ? `${(stats.totalRevenue / stats.totalOrders).toLocaleString()} FCFA`
+        : '0 FCFA',
+      icon: DollarSign,
       color: 'from-blue-500 to-cyan-600'
     },
     {
-      label: 'Paiements Vendeurs',
-      value: stats ? `${((stats.totalRevenue || 0) * 0.85).toLocaleString()} FCFA` : '0 FCFA',
-      change: '+15.3%',
-      positive: true,
+      label: 'Vendeurs actifs',
+      value: stats ? stats.activeVendors : '0',
       icon: DollarSign,
       color: 'from-purple-500 to-pink-600'
-    },
-    {
-      label: 'Transactions',
-      value: stats ? stats.totalOrders : '0',
-      change: '+5.1%',
-      positive: true,
-      icon: TrendingUp,
-      color: 'from-orange to-red'
     }
   ];
 
@@ -92,6 +88,19 @@ export default function FinancesPage({ onNavigate }: FinancesPageProps) {
         {labels[status as keyof typeof labels] || status}
       </span>
     );
+  };
+
+  const handleHealthCheck = async () => {
+    setHealthStatus('checking');
+    setHealthMessage('');
+    const res = await checkFirebaseHealth();
+    if (res.success) {
+      setHealthStatus('ok');
+      setHealthMessage('Connexion Firebase OK (commandes et campagnes accessibles)');
+    } else {
+      setHealthStatus('error');
+      setHealthMessage(res.error || 'Erreur inconnue lors de la vérification Firebase');
+    }
   };
 
   if (loading) {
@@ -120,6 +129,12 @@ export default function FinancesPage({ onNavigate }: FinancesPageProps) {
               <p className="text-sm text-gray-medium">Suivi des revenus et transactions</p>
             </div>
             <div className="flex gap-3">
+              <button
+                onClick={handleHealthCheck}
+                className="px-3 py-2 bg-bg-dark border border-[#333] rounded-lg text-xs text-gray-medium hover:bg-bg-card"
+              >
+                {healthStatus === 'checking' ? 'Vérification Firebase...' : 'Vérifier Firebase'}
+              </button>
               <select
                 value={period}
                 onChange={(e) => setPeriod(e.target.value)}
@@ -138,6 +153,22 @@ export default function FinancesPage({ onNavigate }: FinancesPageProps) {
         </header>
 
         <div className="p-8">
+          {healthStatus !== 'idle' && (
+            <div
+              className={`mb-6 p-3 rounded-lg text-sm ${
+                healthStatus === 'ok'
+                  ? 'bg-green/10 border border-green text-green'
+                  : healthStatus === 'error'
+                  ? 'bg-red/10 border border-red text-red'
+                  : 'bg-bg-card border border-[#333] text-gray-medium'
+              }`}
+            >
+              {healthMessage ||
+                (healthStatus === 'checking'
+                  ? 'Vérification en cours...'
+                  : 'Statut Firebase inconnu')}
+            </div>
+          )}
           {/* Financial Metrics */}
           <div className="grid grid-cols-4 gap-6 mb-8">
             {financialMetrics.map((metric, index) => {
@@ -154,10 +185,6 @@ export default function FinancesPage({ onNavigate }: FinancesPageProps) {
                   <div className="flex items-start justify-between mb-4">
                     <div className={`p-3 rounded-lg bg-gradient-to-br ${metric.color}`}>
                       <Icon size={20} className="text-white" />
-                    </div>
-                    <div className={`text-[13px] flex items-center gap-1 ${metric.positive ? 'text-green' : 'text-red'}`}>
-                      {metric.positive ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                      {metric.change}
                     </div>
                   </div>
                   <div className="text-[13px] text-gray-medium mb-1">{metric.label}</div>
@@ -213,7 +240,7 @@ export default function FinancesPage({ onNavigate }: FinancesPageProps) {
                         Montant
                       </th>
                       <th className="px-4 py-4 text-left border-b border-[#333] text-[13px] text-gray-medium uppercase tracking-wider font-semibold">
-                        Commission
+                        Moyen de paiement
                       </th>
                       <th className="px-4 py-4 text-left border-b border-[#333] text-[13px] text-gray-medium uppercase tracking-wider font-semibold">
                         Statut
@@ -249,8 +276,8 @@ export default function FinancesPage({ onNavigate }: FinancesPageProps) {
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <div className="font-bold text-green">
-                            {((transaction.totalPrice || 0) * 0.15).toLocaleString()} FCFA
+                          <div className="text-sm text-gray-medium">
+                            {transaction.paymentMethod || 'N/A'}
                           </div>
                         </td>
                         <td className="px-4 py-4">
@@ -267,53 +294,29 @@ export default function FinancesPage({ onNavigate }: FinancesPageProps) {
             )}
           </div>
 
-          {/* Paiements Vendeurs */}
-          <div className="grid grid-cols-2 gap-6 mt-8">
-            <div className="bg-bg-medium rounded-lg p-6 border border-[#333]">
-              <h3 className="text-lg font-bold mb-4">Paiements en Attente</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center p-3 bg-bg-dark rounded-lg">
-                  <div>
-                    <div className="font-semibold">TechStore Douala</div>
-                    <div className="text-xs text-gray-medium">15 commandes</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-bold text-orange">450,000 FCFA</div>
-                    <Button variant="primary" size="small" className="mt-2">Payer</Button>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-bg-dark rounded-lg">
-                  <div>
-                    <div className="font-semibold">Fashion Boutique</div>
-                    <div className="text-xs text-gray-medium">8 commandes</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-bold text-orange">280,000 FCFA</div>
-                    <Button variant="primary" size="small" className="mt-2">Payer</Button>
-                  </div>
-                </div>
+          {/* Statistiques Financières */}
+          <div className="bg-bg-medium rounded-lg p-6 border border-[#333] mt-8">
+            <h3 className="text-lg font-bold mb-4">Statistiques Financières</h3>
+            <div className="grid grid-cols-3 gap-6">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-medium">Panier moyen</span>
+                <span className="font-bold text-orange">
+                  {stats && stats.totalOrders > 0
+                    ? `${(stats.totalRevenue / stats.totalOrders).toLocaleString()} FCFA`
+                    : '0 FCFA'}
+                </span>
               </div>
-            </div>
-
-            <div className="bg-bg-medium rounded-lg p-6 border border-[#333]">
-              <h3 className="text-lg font-bold mb-4">Statistiques Financières</h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-medium">Taux de commission</span>
-                  <span className="font-bold">15%</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-medium">Panier moyen</span>
-                  <span className="font-bold text-orange">36,600 FCFA</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-medium">Taux de conversion</span>
-                  <span className="font-bold text-green">8.7%</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-medium">Remboursements</span>
-                  <span className="font-bold text-red">2.3%</span>
-                </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-medium">Taux de conversion</span>
+                <span className="font-bold text-green">
+                  {stats && stats.totalOrders > 0 && stats.totalUsers > 0
+                    ? `${((stats.totalOrders / stats.totalUsers) * 100).toFixed(1)}%`
+                    : '0%'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-medium">Vendeurs actifs</span>
+                <span className="font-bold">{stats ? stats.activeVendors : '0'}</span>
               </div>
             </div>
           </div>

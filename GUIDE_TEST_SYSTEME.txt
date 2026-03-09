@@ -1,0 +1,427 @@
+═══════════════════════════════════════════════════════════════════════════════
+GUIDE DE TEST COMPLET - FLASH DEALS CAMEROUN
+═══════════════════════════════════════════════════════════════════════════════
+
+🎯 Objectif: Tester toutes les fonctionnalités avec des données réelles Firebase
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 PRÉREQUIS
+═══════════════════════════════════════════════════════════════════════════════
+
+1. ✅ Firebase configuré (.env.local avec les bonnes clés)
+2. ✅ Règles Firestore déployées
+3. ✅ Serveur de développement lancé (npm run dev)
+4. ✅ Navigateur ouvert sur http://localhost:3000
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 TEST 1: INSCRIPTION ET CONNEXION CLIENT
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPES:
+1. Aller sur /client
+2. Cliquer sur "S'inscrire"
+3. Remplir le formulaire:
+   - Nom: Test Client
+   - Email: client@test.com
+   - Téléphone: +237 6XX XX XX XX
+   - Mot de passe: Test123!
+4. Valider l'inscription
+5. Vérifier la redirection vers le profil
+6. Se déconnecter
+7. Se reconnecter avec les mêmes identifiants
+
+RÉSULTAT ATTENDU:
+✅ Inscription réussie
+✅ Profil créé dans Firebase (collection users)
+✅ Connexion persistante après rechargement
+✅ Reconnexion réussie
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 TEST 2: INSCRIPTION ET CONNEXION VENDEUR
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPES:
+1. Aller sur /vendeur
+2. Cliquer sur "S'inscrire"
+3. Remplir le formulaire:
+   - Nom de l'entreprise: Test Shop
+   - Email: vendeur@test.com
+   - Téléphone: +237 6XX XX XX XX
+   - Adresse: Douala, Cameroun
+   - Mot de passe: Test123!
+4. Valider l'inscription
+5. Vérifier la redirection vers le dashboard vendeur
+6. Vérifier le statut "En attente de validation"
+
+RÉSULTAT ATTENDU:
+✅ Inscription réussie
+✅ Profil vendeur créé dans Firebase (collection vendors)
+✅ Statut "pending" dans Firestore
+✅ Message "En attente de validation" visible
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 TEST 3: CONNEXION ADMIN ET VALIDATION VENDEUR
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPES:
+1. Aller sur /admin
+2. Se connecter avec les identifiants admin
+3. Aller dans "Vendeurs"
+4. Trouver le vendeur "Test Shop"
+5. Cliquer sur "Valider"
+6. Vérifier le changement de statut
+
+RÉSULTAT ATTENDU:
+✅ Connexion admin réussie
+✅ Liste des vendeurs en attente visible
+✅ Validation réussie
+✅ Statut vendeur passe à "active" dans Firestore
+✅ Rôle utilisateur passe à "vendor" dans collection users
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 TEST 4: CRÉATION DE CAMPAGNE PAR VENDEUR
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPES:
+1. Se connecter en tant que vendeur validé
+2. Aller dans "Campagnes"
+3. Cliquer sur "Nouvelle campagne"
+4. Remplir le formulaire:
+   - Titre: iPhone 15 Pro Max
+   - Description: Dernier modèle Apple
+   - Prix original: 800000 FCFA
+   - Prix actuel: 650000 FCFA
+   - Stock: 50
+   - Catégorie: Électronique
+   - Date début: Aujourd'hui
+   - Date fin: Dans 7 jours
+   - Livraison: Douala et Yaoundé
+   - Localisation: Douala
+5. Ajouter une image
+6. Valider la création
+
+RÉSULTAT ATTENDU:
+✅ Campagne créée dans Firebase (collection campaigns)
+✅ Statut "pending" (en attente de validation admin)
+✅ Campagne visible dans la liste du vendeur
+✅ Image uploadée dans Firebase Storage
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 TEST 5: VALIDATION DE CAMPAGNE PAR ADMIN
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPES:
+1. Se connecter en tant qu'admin
+2. Aller dans "Campagnes"
+3. Trouver la campagne "iPhone 15 Pro Max"
+4. Cliquer sur "Valider"
+5. Vérifier le changement de statut
+
+RÉSULTAT ATTENDU:
+✅ Campagne validée
+✅ Statut passe à "active" dans Firestore
+✅ Campagne visible sur la page client
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 TEST 6: NAVIGATION CLIENT VERS PRODUIT
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPES:
+1. Se connecter en tant que client
+2. Aller sur la page d'accueil
+3. Cliquer sur la campagne "iPhone 15 Pro Max"
+4. Vérifier la redirection vers la page produit
+5. Vérifier les détails du produit
+
+RÉSULTAT ATTENDU:
+✅ Redirection vers la page produit
+✅ selectedCampaignId sauvegardé dans le store
+✅ Détails du produit affichés correctement
+✅ Compteur de vues incrémenté dans Firestore
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 TEST 7: AJOUT AU PANIER
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPES:
+1. Sur la page produit
+2. Cliquer sur "Ajouter au panier"
+3. Aller dans le panier
+4. Vérifier le produit ajouté
+5. Modifier la quantité
+6. Vérifier le total
+
+RÉSULTAT ATTENDU:
+✅ Produit ajouté au panier
+✅ Item créé dans Firebase (collection cart)
+✅ Quantité modifiable
+✅ Total calculé correctement
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 TEST 8: CONFIGURATION ADRESSE DE LIVRAISON
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPES:
+1. Aller dans le panier
+2. Cliquer sur "Commander"
+3. Remplir l'adresse:
+   - Rue: Rue de la Joie
+   - Région: Littoral (sélection dans la liste)
+   - Ville: Douala (avec suggestions)
+   - Téléphone: +237 6XX XX XX XX
+4. Valider l'adresse
+5. Vérifier la sauvegarde
+
+RÉSULTAT ATTENDU:
+✅ Adresse sauvegardée dans Firebase (collection addresses)
+✅ 1 seule adresse par client
+✅ Région sélectionnée dans la liste fixe
+✅ Ville avec suggestions mais saisie libre possible
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 TEST 9: PAIEMENT CASH ON DELIVERY
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPES:
+1. Sur la page checkout
+2. Sélectionner "Paiement à la livraison"
+3. Valider la commande
+4. Vérifier la création de la commande
+
+RÉSULTAT ATTENDU:
+✅ Commande créée dans Firebase (collection orders)
+✅ Statut "pending" (en attente)
+✅ paymentStatus "pending"
+✅ paymentMethod "cash_on_delivery"
+✅ Pas de validation admin requise (direct en attente)
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 TEST 10: PAIEMENT ORANGE MONEY
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPES:
+1. Créer une nouvelle commande
+2. Sélectionner "Orange Money"
+3. Vérifier l'affichage du code marchand
+4. Valider la commande
+5. Se connecter en tant qu'admin
+6. Aller dans "Commandes"
+7. Trouver la commande
+8. Cliquer sur "Valider le paiement"
+
+RÉSULTAT ATTENDU:
+✅ Code marchand Orange Money affiché
+✅ Commande créée avec statut "pending"
+✅ paymentStatus "pending"
+✅ Admin peut valider le paiement
+✅ Après validation: paymentStatus "paid", status "pending"
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 TEST 11: CHAT CLIENT-MANAGER
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPES:
+1. Sur la page produit (client)
+2. Cliquer sur "Contacter le vendeur"
+3. Envoyer un message: "Bonjour, le produit est-il disponible?"
+4. Se connecter en tant qu'admin
+5. Aller dans "Chats"
+6. Trouver la conversation
+7. Répondre: "Oui, le produit est disponible"
+8. Retourner sur le compte client
+9. Vérifier la réception du message
+
+RÉSULTAT ATTENDU:
+✅ Chat créé dans Firebase (collection chats)
+✅ Structure: chats/{campaignId}_{userId}/messages/
+✅ Messages en temps réel
+✅ Admin peut voir et répondre
+✅ Compteur de messages non lus
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 TEST 12: CRÉATION DE MANAGER
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPES:
+1. Se connecter en tant qu'admin
+2. Aller dans "Managers"
+3. Cliquer sur "Ajouter un manager"
+4. Remplir le formulaire:
+   - Nom: Test Manager
+   - Email: manager@test.com
+   - Mot de passe: Test123!
+   - Permissions:
+     ✅ viewDashboard
+     ✅ viewOrders
+     ✅ manageOrders
+     ✅ viewCampaigns
+5. Valider la création
+6. Se déconnecter
+7. Se connecter avec les identifiants manager
+8. Vérifier les sections visibles
+
+RÉSULTAT ATTENDU:
+✅ Manager créé dans Firebase (collection managers)
+✅ Connexion manager réussie
+✅ Sections Finances et Analytics cachées
+✅ Sections autorisées visibles selon permissions
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 TEST 13: FILTRAGE CAMPAGNES EXPIRÉES
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPES:
+1. Créer une campagne avec date de fin passée
+2. Valider la campagne (admin)
+3. Aller sur la page client
+4. Vérifier que la campagne n'apparaît pas
+
+RÉSULTAT ATTENDU:
+✅ Campagne expirée non visible sur la page client
+✅ Filtrage automatique par date de fin
+✅ Seules les campagnes actives et non expirées sont visibles
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 TEST 14: STATISTIQUES ADMIN (SANS FAKE DATA)
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPES:
+1. Se connecter en tant qu'admin
+2. Aller sur le Dashboard
+3. Vérifier les métriques:
+   - GMV Total
+   - Commandes
+   - Utilisateurs
+   - Taux de conversion
+   - Vendeurs actifs
+   - Campagnes actives
+4. Aller dans "Finances"
+5. Vérifier les données:
+   - Revenu Total
+   - Transactions
+   - Panier moyen
+   - Vendeurs actifs
+6. Aller dans "Analytics"
+7. Vérifier les top campagnes
+
+RÉSULTAT ATTENDU:
+✅ Toutes les données viennent de Firebase
+✅ Aucune fake data
+✅ Calculs en temps réel
+✅ Top campagnes triées par vues
+✅ Statistiques cohérentes
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 TEST 15: PERSISTANCE D'AUTHENTIFICATION
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPES:
+1. Se connecter en tant que client
+2. Recharger la page (F5)
+3. Vérifier que l'utilisateur est toujours connecté
+4. Ouvrir un nouvel onglet
+5. Aller sur /client
+6. Vérifier que l'utilisateur est connecté
+7. Fermer le navigateur
+8. Rouvrir le navigateur
+9. Aller sur /client
+10. Vérifier que l'utilisateur est connecté
+
+RÉSULTAT ATTENDU:
+✅ Utilisateur reste connecté après rechargement
+✅ Utilisateur connecté dans tous les onglets
+✅ Utilisateur connecté après fermeture du navigateur
+✅ Synchronisation avec Firebase Auth
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 TEST 16: AVIS ET NOTES
+═══════════════════════════════════════════════════════════════════════════════
+
+ÉTAPES:
+1. Se connecter en tant que client
+2. Aller sur une campagne
+3. Laisser un avis:
+   - Note: 5 étoiles
+   - Commentaire: "Excellent produit!"
+4. Valider l'avis
+5. Vérifier l'affichage de l'avis
+6. Essayer de laisser un autre avis
+7. Vérifier qu'on ne peut laisser qu'un seul avis
+
+RÉSULTAT ATTENDU:
+✅ Avis créé dans Firebase (collection reviews)
+✅ 1 seul avis par utilisateur et par campagne
+✅ Moyenne des notes calculée automatiquement
+✅ Nombre d'avis mis à jour dans la campagne
+
+═══════════════════════════════════════════════════════════════════════════════
+✅ CHECKLIST FINALE
+═══════════════════════════════════════════════════════════════════════════════
+
+AUTHENTIFICATION:
+□ Inscription client
+□ Connexion client
+□ Inscription vendeur
+□ Connexion vendeur
+□ Connexion admin
+□ Persistance d'authentification
+□ Déconnexion
+
+CAMPAGNES:
+□ Création de campagne
+□ Validation de campagne (admin)
+□ Affichage des campagnes actives
+□ Filtrage des campagnes expirées
+□ Navigation vers produit
+□ Compteur de vues
+
+COMMANDES:
+□ Ajout au panier
+□ Modification quantité
+□ Suppression du panier
+□ Configuration adresse
+□ Paiement Cash on Delivery
+□ Paiement Orange Money
+□ Paiement Mobile Money
+□ Validation paiement (admin)
+
+CHAT:
+□ Initiation chat (client)
+□ Envoi message (client)
+□ Réception message (admin/manager)
+□ Réponse (admin/manager)
+□ Messages en temps réel
+□ Compteur messages non lus
+
+MANAGERS:
+□ Création manager
+□ Connexion manager
+□ Permissions granulaires
+□ Sections cachées (Finances, Analytics)
+
+STATISTIQUES:
+□ Dashboard admin (données réelles)
+□ Finances (données réelles)
+□ Analytics (données réelles)
+□ Aucune fake data
+
+AVIS:
+□ Création avis
+□ 1 avis par utilisateur/campagne
+□ Calcul moyenne automatique
+□ Affichage avis
+
+═══════════════════════════════════════════════════════════════════════════════
+🎯 RÉSULTAT ATTENDU GLOBAL
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ Toutes les fonctionnalités testées et fonctionnelles
+✅ Aucune fake data dans le système
+✅ Toutes les données viennent de Firebase
+✅ Persistance d'authentification OK
+✅ Navigation fluide
+✅ Temps réel fonctionnel
+✅ Sécurité respectée
+✅ Règles Firestore appliquées
+
+═══════════════════════════════════════════════════════════════════════════════

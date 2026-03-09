@@ -87,64 +87,25 @@ export default function SignupPage({ onNavigate }: SignupPageProps) {
 
     try {
       // Validation
-      if (!formData.businessName || !formData.fullName) {
-        throw new Error('Veuillez remplir tous les champs obligatoires');
+      if (!formData.businessName) {
+        throw new Error('Le nom de l\'entreprise est obligatoire');
       }
 
       if (!cniFile) {
         throw new Error('La CNI est obligatoire');
       }
 
-      // Upload des documents
-      let cniUrl = '';
-      let registreUrl = '';
-
-      if (cniFile) {
-        const cniResult = await uploadCompressedImage(cniFile, 'vendor-documents', 1920, 0.9);
-        if (cniResult.success && cniResult.url) {
-          cniUrl = cniResult.url;
-        }
-      }
-
-      if (registreFile) {
-        const registreResult = await uploadCompressedImage(registreFile, 'vendor-documents', 1920, 0.9);
-        if (registreResult.success && registreResult.url) {
-          registreUrl = registreResult.url;
-        }
-      }
-
       // Vérifier si l'utilisateur est déjà connecté
       const { getCurrentUser } = await import('@/lib/firebase/auth');
       const currentUser = getCurrentUser();
       
-      if (currentUser) {
-        // L'utilisateur est déjà connecté, juste créer le profil vendeur
-        const vendorData = {
-          businessName: formData.businessName,
-          email: currentUser.email || formData.email,
-          phone: formData.phone,
-          address: `${formData.address}, ${formData.city}`,
-          description: formData.description || `${formData.businessType} à ${formData.city}`,
-          cniUrl,
-          registreUrl,
-          businessType: formData.businessType,
-          city: formData.city
-        };
+      // Si pas connecté et pas d'email/password, erreur
+      if (!currentUser && (!formData.email || !formData.password)) {
+        throw new Error('Email et mot de passe requis pour créer un compte');
+      }
 
-        const profileResult = await createVendorProfile(vendorData);
-        
-        if (!profileResult.success) {
-          throw new Error(profileResult.error || 'Erreur lors de la création du profil');
-        }
-
-        // Passer à l'étape de confirmation
-        setSignupStep(4);
-      } else {
-        // Créer un nouveau compte
-        if (!formData.email || !formData.password) {
-          throw new Error('Email et mot de passe requis');
-        }
-
+      // Si pas connecté, créer le compte d'abord
+      if (!currentUser) {
         if (formData.password.length < 8) {
           throw new Error('Le mot de passe doit contenir au moins 8 caractères');
         }
@@ -156,33 +117,53 @@ export default function SignupPage({ onNavigate }: SignupPageProps) {
         
         if (!authResult.success) {
           if (authResult.error?.includes('email-already-in-use')) {
-            throw new Error('Cet email est déjà utilisé. Veuillez vous connecter d\'abord.');
+            throw new Error('Cet email est déjà utilisé. Veuillez vous connecter d\'abord, puis revenez sur cette page pour devenir partenaire.');
           }
           throw new Error(authResult.error || 'Erreur lors de la création du compte');
         }
-
-        // Créer le profil vendeur
-        const vendorData = {
-          businessName: formData.businessName,
-          email: formData.email,
-          phone: formData.phone,
-          address: `${formData.address}, ${formData.city}`,
-          description: formData.description || `${formData.businessType} à ${formData.city}`,
-          cniUrl,
-          registreUrl,
-          businessType: formData.businessType,
-          city: formData.city
-        };
-
-        const profileResult = await createVendorProfile(vendorData);
-        
-        if (!profileResult.success) {
-          throw new Error(profileResult.error || 'Erreur lors de la création du profil');
-        }
-
-        // Passer à l'étape de confirmation
-        setSignupStep(4);
       }
+
+      // Maintenant l'utilisateur est connecté, uploader les documents
+      let cniUrl = '';
+      let registreUrl = '';
+
+      if (cniFile) {
+        const cniResult = await uploadCompressedImage(cniFile, 'vendor-documents', 1920, 0.9);
+        if (!cniResult.success || !cniResult.url) {
+          throw new Error('Erreur lors de l\'upload de la CNI');
+        }
+        cniUrl = cniResult.url;
+      }
+
+      if (registreFile) {
+        const registreResult = await uploadCompressedImage(registreFile, 'vendor-documents', 1920, 0.9);
+        if (registreResult.success && registreResult.url) {
+          registreUrl = registreResult.url;
+        }
+      }
+
+      // Créer le profil vendeur
+      const finalUser = getCurrentUser();
+      const vendorData = {
+        businessName: formData.businessName,
+        email: finalUser?.email || formData.email,
+        phone: formData.phone,
+        address: `${formData.address}, ${formData.city}`,
+        description: formData.description || `${formData.businessType} à ${formData.city}`,
+        cniUrl,
+        registreUrl,
+        businessType: formData.businessType,
+        city: formData.city
+      };
+
+      const profileResult = await createVendorProfile(vendorData);
+      
+      if (!profileResult.success) {
+        throw new Error(profileResult.error || 'Erreur lors de la création du profil');
+      }
+
+      // Passer à l'étape de confirmation
+      setSignupStep(4);
       
     } catch (err: any) {
       setError(err.message || 'Une erreur est survenue');

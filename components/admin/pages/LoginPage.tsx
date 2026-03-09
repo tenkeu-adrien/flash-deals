@@ -33,17 +33,27 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
 
       // Vérifier si l'utilisateur est admin dans Firestore
       const { doc, getDoc } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase/config');
+      const { getFirebaseDb, Collections } = await import('@/lib/firebase/config');
+      const db = getFirebaseDb();
       
-      const adminDoc = await getDoc(doc(db, 'admins', result.user.uid));
+      // Vérifier d'abord dans la collection admins
+      let adminDoc = await getDoc(doc(db, Collections.ADMINS, result.user.uid));
+      
+      // Si pas dans admins, vérifier dans users avec role='admin'
+      if (!adminDoc.exists()) {
+        const userDoc = await getDoc(doc(db, Collections.USERS, result.user.uid));
+        if (userDoc.exists() && userDoc.data().role === 'admin') {
+          adminDoc = userDoc;
+        }
+      }
       
       if (!adminDoc.exists()) {
         // Pas un admin
         setError('❌ Accès refusé: Vous n\'êtes pas administrateur.\n\nCette interface est réservée aux administrateurs Flash Deals.');
         
         // Déconnecter l'utilisateur
-        const { logoutUser } = await import('@/lib/firebase/auth');
-        await logoutUser();
+        const { logout } = await import('@/lib/firebase/auth');
+        await logout();
         
         setLoading(false);
         return;

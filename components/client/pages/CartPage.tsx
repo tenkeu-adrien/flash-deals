@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { getCart, removeFromCart, createOrder, clearCart } from '@/lib/firebase/firestore';
+import { getCart, removeFromCart, createOrderWithItem, clearCart } from '@/lib/firebase/firestore';
 import { useClientStore } from '@/lib/stores/clientStore';
 
 interface CartPageProps {
@@ -50,30 +50,37 @@ export default function CartPage({ onNavigate }: CartPageProps) {
 
     setCheckingOut(true);
 
-    // Créer une commande pour chaque article
-    const orderPromises = cart.map(item =>
-      createOrder({
-        campaignId: item.campaignId,
-        vendorId: item.campaign.vendorId,
-        quantity: item.quantity,
-        totalPrice: item.campaign.currentPrice * item.quantity,
-        deliveryAddress
-      })
-    );
+    try {
+      // Créer une commande pour chaque article (1 article = 1 commande dans ce design)
+      const orderPromises = cart.map((item) =>
+        createOrderWithItem({
+          campaign: {
+            id: item.campaignId,
+            vendorId: item.campaign?.vendorId,
+            title: item.campaign?.title,
+            images: item.campaign?.images || [],
+            currentPrice: item.campaign?.currentPrice || 0
+          },
+          quantity: item.quantity,
+          deliveryAddress
+        })
+      );
 
-    const results = await Promise.all(orderPromises);
+      const results = await Promise.all(orderPromises);
+      const failed = results.filter((r) => !r.success);
 
-    const allSuccess = results.every(r => r.success);
-
-    if (allSuccess) {
-      await clearCart();
-      alert('✅ Commande passée avec succès! Vous recevrez une confirmation par SMS.');
-      onNavigate('dashboard');
-    } else {
-      alert('❌ Erreur lors de la commande. Veuillez réessayer.');
+      if (failed.length === 0) {
+        await clearCart();
+        alert('✅ Commande passée avec succès! Vous recevrez une confirmation par SMS.');
+        onNavigate('dashboard');
+      } else {
+        const errors = failed.map((r) => r.error || 'Erreur inconnue').join('\n');
+        alert(`❌ Certaines commandes ont échoué:\n\n${errors}`);
+      }
+    } finally {
+      setCheckingOut(false);
     }
 
-    setCheckingOut(false);
   };
 
   const calculateTotal = () => {
@@ -270,83 +277,15 @@ export default function CartPage({ onNavigate }: CartPageProps) {
               )}
             </div>
 
-            {/* Formulaire de livraison */}
-            {showCheckout ? (
-              <div style={{ marginBottom: 'var(--spacing-lg)' }}>
-                <h3 style={{ fontSize: '16px', marginBottom: 'var(--spacing-md)' }}>
-                  📍 Adresse de livraison
-                </h3>
-
-                <Input
-                  label="Adresse complète"
-                  type="text"
-                  value={deliveryAddress.street}
-                  onChange={(e) => setDeliveryAddress({ ...deliveryAddress, street: e.target.value })}
-                  placeholder="Rue, quartier, immeuble..."
-                  required
-                />
-
-                <Input
-                  label="Ville"
-                  type="text"
-                  value={deliveryAddress.city}
-                  onChange={(e) => setDeliveryAddress({ ...deliveryAddress, city: e.target.value })}
-                  placeholder="Douala, Yaoundé..."
-                  required
-                />
-
-                <Input
-                  label="Région"
-                  type="text"
-                  value={deliveryAddress.region}
-                  onChange={(e) => setDeliveryAddress({ ...deliveryAddress, region: e.target.value })}
-                  placeholder="Littoral, Centre..."
-                  required
-                />
-
-                <Input
-                  label="Téléphone"
-                  type="tel"
-                  value={deliveryAddress.phone}
-                  onChange={(e) => setDeliveryAddress({ ...deliveryAddress, phone: e.target.value })}
-                  placeholder="+237 6XX XXX XXX"
-                  required
-                />
-
-                <Button
-                  onClick={handleCheckout}
-                  variant="primary"
-                  size="block"
-                  disabled={checkingOut}
-                >
-                  {checkingOut ? '⏳ Commande en cours...' : '✅ Confirmer la commande'}
-                </Button>
-
-                <button
-                  onClick={() => setShowCheckout(false)}
-                  style={{
-                    width: '100%',
-                    padding: '14px',
-                    marginTop: 'var(--spacing-sm)',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--color-gray-medium)',
-                    fontSize: '14px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Annuler
-                </button>
-              </div>
-            ) : (
-              <Button
-                onClick={() => setShowCheckout(true)}
-                variant="primary"
-                size="block"
-              >
-                Passer la commande →
-              </Button>
-            )}
+            {/* Bouton Commander */}
+            <Button
+              onClick={() => onNavigate('checkout')}
+              variant="primary"
+              size="block"
+              disabled={cart.length === 0}
+            >
+              Passer la commande →
+            </Button>
           </>
         )}
       </div>
