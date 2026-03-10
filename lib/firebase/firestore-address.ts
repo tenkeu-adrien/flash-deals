@@ -8,7 +8,7 @@ import {
   setDoc,
   serverTimestamp
 } from 'firebase/firestore';
-import { db } from './config';
+import { getFirebaseDb } from './config';
 import { getCurrentUserId } from './auth';
 
 // ============================================
@@ -81,6 +81,7 @@ export async function getUserAddress(userId?: string): Promise<{
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     const uid = userId || getCurrentUserId();
     if (!uid) throw new Error('Utilisateur non connecté');
 
@@ -107,6 +108,7 @@ export async function saveUserAddress(
   addressData: Omit<UserAddress, 'userId' | 'createdAt' | 'updatedAt'>
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const userId = getCurrentUserId();
     if (!userId) throw new Error('Utilisateur non connecté');
 

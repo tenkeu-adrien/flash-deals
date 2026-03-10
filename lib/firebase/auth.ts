@@ -258,7 +258,8 @@ export async function resetPassword(email: string): Promise<{ success: boolean; 
  */
 export async function updatePassword(newPassword: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const user = auth.currentUser;
+    const firebaseAuth = getFirebaseAuth();
+    const user = firebaseAuth.currentUser;
     if (!user) throw new Error('Utilisateur non connecté');
 
     await firebaseUpdatePassword(user, newPassword);
@@ -279,7 +280,8 @@ export async function updatePassword(newPassword: string): Promise<{ success: bo
  */
 export async function getUserProfile(userId?: string): Promise<{ success: boolean; profile?: UserData; error?: string }> {
   try {
-    const uid = userId || auth.currentUser?.uid;
+    const firebaseAuth = getFirebaseAuth();
+    const uid = userId || firebaseAuth.currentUser?.uid;
     if (!uid) throw new Error('Utilisateur non connecté');
 
     const docSnap = await getDoc(doc(getFirebaseDb(), Collections.USERS, uid));
@@ -300,7 +302,8 @@ export async function getUserProfile(userId?: string): Promise<{ success: boolea
  */
 export async function updateUserProfile(data: Partial<UserData>): Promise<{ success: boolean; error?: string }> {
   try {
-    const uid = auth.currentUser?.uid;
+    const firebaseAuth = getFirebaseAuth();
+    const uid = firebaseAuth.currentUser?.uid;
     if (!uid) throw new Error('Utilisateur non connecté');
 
     await updateDoc(doc(getFirebaseDb(), Collections.USERS, uid), {
@@ -324,31 +327,35 @@ export async function updateUserProfile(data: Partial<UserData>): Promise<{ succ
  * Écouter les changements d'authentification
  */
 export function onAuthStateChange(callback: (user: User | null) => void) {
-  return onAuthStateChanged(auth, callback);
+  const firebaseAuth = getFirebaseAuth();
+  return onAuthStateChanged(firebaseAuth, callback);
 }
 
 /**
  * Obtenir l'utilisateur actuel
  */
 export function getCurrentUser(): User | null {
-  if (typeof window === 'undefined' || !auth) return null;
-  return auth.currentUser;
+  if (typeof window === 'undefined') return null;
+  const firebaseAuth = getFirebaseAuth();
+  return firebaseAuth.currentUser;
 }
 
 /**
  * Obtenir l'ID de l'utilisateur actuel
  */
 export function getCurrentUserId(): string | null {
-  if (typeof window === 'undefined' || !auth) return null;
-  return auth.currentUser?.uid || null;
+  if (typeof window === 'undefined') return null;
+  const firebaseAuth = getFirebaseAuth();
+  return firebaseAuth.currentUser?.uid || null;
 }
 
 /**
  * Vérifier si l'utilisateur est connecté
  */
 export function isUserLoggedIn(): boolean {
-  if (typeof window === 'undefined' || !auth) return false;
-  return auth.currentUser !== null;
+  if (typeof window === 'undefined') return false;
+  const firebaseAuth = getFirebaseAuth();
+  return firebaseAuth.currentUser !== null;
 }
 
 

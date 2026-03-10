@@ -14,7 +14,7 @@ import {
   Timestamp,
   serverTimestamp
 } from 'firebase/firestore';
-import { db, Collections } from './config';
+import { getFirebaseDb, Collections } from './config';
 import { getCurrentUserId } from './auth';
 import { Campaign } from './firestore';
 
@@ -53,6 +53,7 @@ export async function getActiveCampaignsOnly(): Promise<{
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     const q = query(
       collection(db, Collections.CAMPAIGNS),
       where('status', '==', 'active'),
@@ -66,7 +67,6 @@ export async function getActiveCampaignsOnly(): Promise<{
       const campaign = { id: doc.id, ...doc.data() } as Campaign;
       const isExpired = isCampaignExpired(campaign);
       
-      // Ne retourner que les campagnes non expirées
       if (!isExpired) {
         campaigns.push({
           ...campaign,
@@ -82,7 +82,6 @@ export async function getActiveCampaignsOnly(): Promise<{
     return { success: false, error: error.message };
   }
 }
-
 /**
  * Obtenir les campagnes expirées d'un vendeur
  */
@@ -92,6 +91,7 @@ export async function getExpiredCampaigns(vendorId?: string): Promise<{
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     const uid = vendorId || getCurrentUserId();
     if (!uid) throw new Error('Vendeur non connecté');
 
@@ -108,7 +108,6 @@ export async function getExpiredCampaigns(vendorId?: string): Promise<{
       const campaign = { id: doc.id, ...doc.data() } as Campaign;
       const isExpired = isCampaignExpired(campaign);
       
-      // Ne retourner que les campagnes expirées
       if (isExpired) {
         campaigns.push({
           ...campaign,
@@ -134,6 +133,7 @@ export async function markExpiredCampaignsAsCompleted(): Promise<{
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     const q = query(
       collection(db, Collections.CAMPAIGNS),
       where('status', '==', 'active')
@@ -164,10 +164,6 @@ export async function markExpiredCampaignsAsCompleted(): Promise<{
   }
 }
 
-// ============================================
-// RELANCE DE CAMPAGNE
-// ============================================
-
 /**
  * Relancer une campagne expirée
  */
@@ -177,10 +173,10 @@ export async function relaunchCampaign(
   newStock?: number
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const vendorId = getCurrentUserId();
     if (!vendorId) throw new Error('Vendeur non connecté');
 
-    // Vérifier que la campagne appartient au vendeur
     const campaignDoc = await getDoc(doc(db, Collections.CAMPAIGNS, campaignId));
     if (!campaignDoc.exists()) {
       throw new Error('Campagne non trouvée');
@@ -191,17 +187,12 @@ export async function relaunchCampaign(
       throw new Error('Vous n\'êtes pas autorisé à relancer cette campagne');
     }
 
-    // Vérifier que la campagne est bien expirée
     if (!isCampaignExpired(campaign)) {
       throw new Error('Cette campagne n\'est pas encore expirée');
     }
 
-    // Vérifier l'abonnement du vendeur (à implémenter selon votre logique)
-    // TODO: Vérifier si le vendeur a le droit de relancer selon son abonnement
-
-    // Relancer la campagne
     const updateData: any = {
-      status: 'pending', // Doit être revalidée par l'admin
+      status: 'pending',
       startDate: Timestamp.now(),
       endDate: Timestamp.fromDate(newEndDate),
       updatedAt: serverTimestamp()
@@ -222,16 +213,16 @@ export async function relaunchCampaign(
 }
 
 /**
- * Vérifier si un vendeur peut relancer une campagne (selon son abonnement)
+ * Vérifier si un vendeur peut relancer une campagne
  */
 export async function canVendorRelaunchCampaign(
   vendorId?: string
 ): Promise<{ success: boolean; canRelaunch?: boolean; reason?: string; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const uid = vendorId || getCurrentUserId();
     if (!uid) throw new Error('Vendeur non connecté');
 
-    // Récupérer le profil vendeur
     const vendorDoc = await getDoc(doc(db, 'vendors', uid));
     if (!vendorDoc.exists()) {
       throw new Error('Profil vendeur non trouvé');
@@ -239,7 +230,6 @@ export async function canVendorRelaunchCampaign(
 
     const vendor = vendorDoc.data();
     
-    // Vérifier le statut
     if (vendor.status !== 'active') {
       return { 
         success: true, 
@@ -248,10 +238,8 @@ export async function canVendorRelaunchCampaign(
       };
     }
 
-    // Vérifier l'abonnement (à adapter selon votre logique)
     const subscription = vendor.subscription || 'basic';
     
-    // Récupérer le nombre de campagnes actives
     const activeCampaignsQuery = query(
       collection(db, Collections.CAMPAIGNS),
       where('vendorId', '==', uid),
@@ -261,7 +249,6 @@ export async function canVendorRelaunchCampaign(
     const activeCampaignsSnapshot = await getDocs(activeCampaignsQuery);
     const activeCampaignsCount = activeCampaignsSnapshot.size;
 
-    // Limites selon l'abonnement
     const limits: Record<string, number> = {
       basic: 2,
       premium: 10,
@@ -285,10 +272,6 @@ export async function canVendorRelaunchCampaign(
   }
 }
 
-// ============================================
-// STATISTIQUES DE CAMPAGNES
-// ============================================
-
 /**
  * Obtenir les statistiques d'une campagne terminée
  */
@@ -304,6 +287,7 @@ export async function getCampaignStats(campaignId: string): Promise<{
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     const campaignDoc = await getDoc(doc(db, Collections.CAMPAIGNS, campaignId));
     if (!campaignDoc.exists()) {
       throw new Error('Campagne non trouvée');
@@ -311,7 +295,6 @@ export async function getCampaignStats(campaignId: string): Promise<{
 
     const campaign = campaignDoc.data() as Campaign;
 
-    // Calculer les statistiques
     const totalViews = campaign.views || 0;
     const totalInterested = campaign.interested || 0;
     const totalSold = campaign.sold || 0;

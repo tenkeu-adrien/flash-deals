@@ -18,7 +18,7 @@ import {
   Timestamp,
   arrayUnion
 } from 'firebase/firestore';
-import { db, Collections } from './config';
+import { getFirebaseDb, Collections } from './config';
 import { getCurrentUserId } from './auth';
 
 // ============================================
@@ -106,20 +106,6 @@ export interface SavedAddress {
   updatedAt: any;
 }
 
-// Régions du Cameroun
-export const CAMEROON_REGIONS = [
-  'Adamaoua',
-  'Centre',
-  'Est',
-  'Extrême-Nord',
-  'Littoral',
-  'Nord',
-  'Nord-Ouest',
-  'Ouest',
-  'Sud',
-  'Sud-Ouest'
-] as const;
-
 // ============================================
 // PARAMÈTRES DE PAIEMENT (ADMIN)
 // ============================================
@@ -132,6 +118,7 @@ export async function setPaymentSettings(
   mobileMoneyCode: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const adminId = getCurrentUserId();
     if (!adminId) throw new Error('Admin non connecté');
 
@@ -159,6 +146,7 @@ export async function getPaymentSettings(): Promise<{
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     const docSnap = await getDoc(doc(db, 'settings', 'payment'));
     
     if (docSnap.exists()) {
@@ -206,6 +194,7 @@ export async function createOrderWithPayment(params: {
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     const userId = getCurrentUserId();
     if (!userId) throw new Error('Utilisateur non connecté');
 
@@ -286,6 +275,7 @@ export async function validateOrderPayment(
   orderId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const adminId = getCurrentUserId();
     if (!adminId) throw new Error('Admin non connecté');
 
@@ -310,6 +300,7 @@ export async function markOrderInDelivery(
   orderId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     await updateDoc(doc(db, Collections.ORDERS, orderId), {
       status: 'in_delivery',
       updatedAt: serverTimestamp()
@@ -330,6 +321,7 @@ export async function markOrderDelivered(
   orderId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     await updateDoc(doc(db, Collections.ORDERS, orderId), {
       status: 'delivered',
       deliveredAt: serverTimestamp(),
@@ -353,6 +345,7 @@ export async function getPendingValidationOrders(): Promise<{
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     const q = query(
       collection(db, Collections.ORDERS),
       where('status', '==', 'pending_validation'),
@@ -380,6 +373,7 @@ export async function getOrdersByStatus(
   status: OrderWithPayment['status']
 ): Promise<{ success: boolean; orders?: OrderWithPayment[]; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const q = query(
       collection(db, Collections.ORDERS),
       where('status', '==', status),
@@ -415,6 +409,7 @@ export async function sendOrderMessage(
   senderName: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const senderId = getCurrentUserId();
     if (!senderId) throw new Error('Utilisateur non connecté');
 
@@ -449,6 +444,7 @@ export async function getOrderMessages(
   orderId: string
 ): Promise<{ success: boolean; messages?: ChatMessage[]; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const q = query(
       collection(db, Collections.ORDERS, orderId, 'messages'),
       orderBy('createdAt', 'asc')
@@ -476,6 +472,7 @@ export async function markMessagesAsRead(
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const messagesQuery = query(
       collection(db, Collections.ORDERS, orderId, 'messages')
     );
@@ -515,6 +512,7 @@ export async function getAllOrderChats(): Promise<{
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     const ordersSnapshot = await getDocs(collection(db, Collections.ORDERS));
     const chats = [];
 
@@ -564,6 +562,7 @@ export async function saveDeliveryAddress(
   addressData: Omit<SavedAddress, 'id' | 'userId' | 'createdAt' | 'updatedAt'>
 ): Promise<{ success: boolean; addressId?: string; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const userId = getCurrentUserId();
     if (!userId) throw new Error('Utilisateur non connecté');
 
@@ -608,6 +607,7 @@ export async function getUserAddresses(userId?: string): Promise<{
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     const uid = userId || getCurrentUserId();
     if (!uid) throw new Error('Utilisateur non connecté');
 
@@ -639,6 +639,7 @@ export async function updateDeliveryAddress(
   updates: Partial<Omit<SavedAddress, 'id' | 'userId' | 'createdAt'>>
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const userId = getCurrentUserId();
     if (!userId) throw new Error('Utilisateur non connecté');
 
@@ -680,6 +681,7 @@ export async function deleteDeliveryAddress(addressId: string): Promise<{
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     await deleteDoc(doc(db, 'addresses', addressId));
     console.log('✅ Adresse supprimée');
     return { success: true };
@@ -702,6 +704,7 @@ export async function getVendorSalesReport(
   endDate?: Date
 ): Promise<{ success: boolean; report?: VendorSalesReport; error?: string }> {
   try {
+    const db = getFirebaseDb();
     // Récupérer toutes les commandes livrées du vendeur
     let q = query(
       collection(db, Collections.ORDERS),
@@ -759,6 +762,7 @@ export async function getAllVendorsSalesReports(
   endDate?: Date
 ): Promise<{ success: boolean; reports?: VendorSalesReport[]; error?: string }> {
   try {
+    const db = getFirebaseDb();
     // Récupérer tous les vendeurs actifs
     const vendorsSnapshot = await getDocs(
       query(collection(db, 'vendors'), where('status', '==', 'active'))
@@ -797,6 +801,7 @@ export async function getOrdersCountByVendor(): Promise<{
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     const snapshot = await getDocs(collection(db, Collections.ORDERS));
     const counts: Record<string, number> = {};
 

@@ -91,9 +91,8 @@ export function useForm<T extends Record<string, any>>({
    */
   const validateField = (name: keyof T): boolean => {
     try {
-      // Créer un schéma partiel pour valider un seul champ
-      const fieldSchema = schema.pick({ [name]: true } as any);
-      fieldSchema.parse({ [name]: values[name] });
+      // Valider le champ individuellement
+      schema.parse(values);
       
       // Effacer l'erreur si la validation réussit
       if (errors[name as string]) {

@@ -12,7 +12,7 @@ import {
   getMetadata,
   UploadTask
 } from 'firebase/storage';
-import { storage } from './config';
+import { getFirebaseStorage } from './config';
 import { getCurrentUserId } from './auth';
 
 // ============================================
@@ -27,6 +27,7 @@ export async function uploadImage(
   folder = 'images'
 ): Promise<{ success: boolean; url?: string; path?: string; error?: string }> {
   try {
+    const storage = getFirebaseStorage();
     const userId = getCurrentUserId();
     if (!userId) throw new Error('Utilisateur non connecté');
 
@@ -85,6 +86,7 @@ export function uploadWithProgress(
 ): Promise<{ success: boolean; url?: string; path?: string; error?: string }> {
   return new Promise(async (resolve, reject) => {
     try {
+      const storage = getFirebaseStorage();
       const userId = getCurrentUserId();
       if (!userId) throw new Error('Utilisateur non connecté');
 
@@ -126,6 +128,7 @@ export function uploadWithProgress(
  */
 export async function deleteImage(filePath: string): Promise<{ success: boolean; error?: string }> {
   try {
+    const storage = getFirebaseStorage();
     const storageRef = ref(storage, filePath);
     await deleteObject(storageRef);
 
@@ -142,6 +145,7 @@ export async function deleteImage(filePath: string): Promise<{ success: boolean;
  */
 export async function deleteMultipleImages(filePaths: string[]): Promise<{ success: boolean; error?: string }> {
   try {
+    const storage = getFirebaseStorage();
     const deletePromises = filePaths.map((path) => {
       const storageRef = ref(storage, path);
       return deleteObject(storageRef);
@@ -166,6 +170,7 @@ export async function deleteMultipleImages(filePaths: string[]): Promise<{ succe
  */
 export async function getDownloadUrl(filePath: string): Promise<{ success: boolean; url?: string; error?: string }> {
   try {
+    const storage = getFirebaseStorage();
     const storageRef = ref(storage, filePath);
     const url = await getDownloadURL(storageRef);
 
@@ -181,6 +186,7 @@ export async function getDownloadUrl(filePath: string): Promise<{ success: boole
  */
 export async function getFileMetadata(filePath: string): Promise<{ success: boolean; metadata?: any; error?: string }> {
   try {
+    const storage = getFirebaseStorage();
     const storageRef = ref(storage, filePath);
     const metadata = await getMetadata(storageRef);
 
@@ -196,6 +202,7 @@ export async function getFileMetadata(filePath: string): Promise<{ success: bool
  */
 export async function listFiles(folder: string): Promise<{ success: boolean; files?: any[]; error?: string }> {
   try {
+    const storage = getFirebaseStorage();
     const storageRef = ref(storage, folder);
     const result = await listAll(storageRef);
 

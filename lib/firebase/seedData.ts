@@ -3,7 +3,7 @@
 // ============================================
 
 import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { db, Collections } from './config';
+import { getFirebaseDb, Collections } from './config';
 
 /**
  * Créer des campagnes de test
@@ -175,6 +175,7 @@ export async function seedCampaigns() {
   ];
 
   console.log('🌱 Création des campagnes...');
+  const db = getFirebaseDb();
   
   for (const campaign of campaigns) {
     try {
@@ -250,6 +251,7 @@ export async function seedUsers() {
   ];
 
   console.log('🌱 Création des utilisateurs...');
+  const db = getFirebaseDb();
   
   for (const user of users) {
     try {
@@ -292,6 +294,7 @@ export async function seedReviews() {
   ];
 
   console.log('🌱 Création des avis...');
+  const db = getFirebaseDb();
   
   for (const review of reviews) {
     try {

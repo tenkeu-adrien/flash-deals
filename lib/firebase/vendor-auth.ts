@@ -3,7 +3,7 @@
 // ============================================
 
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { db, Collections, auth } from './config';
+import { getFirebaseDb, getFirebaseAuth, Collections } from './config';
 import { signupWithEmail, loginWithEmail, getCurrentUser } from './auth';
 
 export interface VendorRegistrationData {
@@ -116,6 +116,7 @@ export async function registerVendor(
       acceptedTermsAt: serverTimestamp()
     };
 
+    const db = getFirebaseDb();
     await setDoc(doc(db, Collections.VENDORS, userId), vendorData);
 
     // Mettre à jour le rôle dans la collection users
@@ -143,6 +144,7 @@ export async function registerVendor(
  */
 export async function isUserVendor(userId: string): Promise<boolean> {
   try {
+    const db = getFirebaseDb();
     const vendorDoc = await getDoc(doc(db, Collections.VENDORS, userId));
     return vendorDoc.exists();
   } catch (error) {
@@ -160,6 +162,7 @@ export async function getVendorApplicationStatus(userId: string): Promise<{
   error?: string;
 }> {
   try {
+    const db = getFirebaseDb();
     const vendorDoc = await getDoc(doc(db, Collections.VENDORS, userId));
     
     if (vendorDoc.exists()) {

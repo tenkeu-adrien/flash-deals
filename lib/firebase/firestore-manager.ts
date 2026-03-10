@@ -14,7 +14,7 @@ import {
   where,
   serverTimestamp
 } from 'firebase/firestore';
-import { db } from './config';
+import { getFirebaseDb } from './config';
 import { getCurrentUserId } from './auth';
 
 // ============================================
@@ -57,10 +57,10 @@ export async function createManager(managerData: {
   permissions?: Partial<Manager['permissions']>;
 }): Promise<{ success: boolean; managerId?: string; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const adminId = getCurrentUserId();
     if (!adminId) throw new Error('Admin non connecté');
 
-    // Permissions par défaut pour un manager
     const defaultPermissions: Manager['permissions'] = {
       viewOrders: true,
       manageOrders: true,
@@ -68,8 +68,8 @@ export async function createManager(managerData: {
       chatWithClients: true,
       viewVendors: true,
       viewCampaigns: true,
-      viewFinances: false, // Pas d'accès aux finances par défaut
-      viewAnalytics: false  // Pas d'accès aux analytics par défaut
+      viewFinances: false,
+      viewAnalytics: false
     };
 
     const manager: Omit<Manager, 'id'> = {
@@ -87,7 +87,6 @@ export async function createManager(managerData: {
       updatedAt: serverTimestamp()
     };
 
-    // Utiliser l'email comme ID pour faciliter la connexion
     const managerId = managerData.email.replace(/[@.]/g, '_');
     await setDoc(doc(db, 'managers', managerId), manager);
 
@@ -108,11 +107,12 @@ export async function getAllManagers(): Promise<{
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     const snapshot = await getDocs(collection(db, 'managers'));
     const managers: Manager[] = [];
 
-    snapshot.forEach((doc) => {
-      managers.push({ id: doc.id, ...doc.data() } as Manager);
+    snapshot.forEach((docSnap) => {
+      managers.push({ id: docSnap.id, ...docSnap.data() } as Manager);
     });
 
     return { success: true, managers };
@@ -131,6 +131,7 @@ export async function getManager(managerId: string): Promise<{
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     const docSnap = await getDoc(doc(db, 'managers', managerId));
 
     if (docSnap.exists()) {
@@ -155,6 +156,7 @@ export async function updateManagerPermissions(
   permissions: Partial<Manager['permissions']>
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const adminId = getCurrentUserId();
     if (!adminId) throw new Error('Admin non connecté');
 
@@ -179,6 +181,7 @@ export async function deactivateManager(managerId: string): Promise<{
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     await updateDoc(doc(db, 'managers', managerId), {
       status: 'inactive',
       updatedAt: serverTimestamp()
@@ -200,6 +203,7 @@ export async function activateManager(managerId: string): Promise<{
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     await updateDoc(doc(db, 'managers', managerId), {
       status: 'active',
       updatedAt: serverTimestamp()
@@ -221,6 +225,7 @@ export async function deleteManager(managerId: string): Promise<{
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     await deleteDoc(doc(db, 'managers', managerId));
 
     console.log('✅ Manager supprimé');
@@ -231,15 +236,12 @@ export async function deleteManager(managerId: string): Promise<{
   }
 }
 
-// ============================================
-// VÉRIFICATION DES PERMISSIONS
-// ============================================
-
 /**
  * Vérifier si un utilisateur est un manager actif
  */
 export async function isActiveManager(userId: string): Promise<boolean> {
   try {
+    const db = getFirebaseDb();
     const docSnap = await getDoc(doc(db, 'managers', userId));
     
     if (docSnap.exists()) {

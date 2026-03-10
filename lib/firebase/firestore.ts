@@ -22,7 +22,7 @@ import {
   arrayRemove,
   Timestamp
 } from 'firebase/firestore';
-import { db, Collections } from './config';
+import { getFirebaseDb, Collections } from './config';
 import { getCurrentUserId } from './auth';
 
 // ============================================
@@ -130,6 +130,7 @@ export async function addReview(
   comment: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const userId = getCurrentUserId();
     if (!userId) throw new Error('Utilisateur non connecté');
     if (!campaignId) throw new Error('Campagne invalide');
@@ -196,6 +197,7 @@ export async function getCampaignReviews(
   limitCount = 20
 ): Promise<{ success: boolean; reviews?: Review[]; error?: string }> {
   try {
+    const db = getFirebaseDb();
     if (!campaignId) throw new Error('Campagne invalide');
 
     const q = query(
@@ -218,6 +220,7 @@ export async function getCampaignReviews(
 
     // Fallback sans orderBy (si index manquant)
     try {
+      const db = getFirebaseDb();
       const q = query(
         collection(db, Collections.REVIEWS),
         where('campaignId', '==', campaignId),
@@ -248,6 +251,7 @@ export async function getCampaignReviews(
  */
 export async function createCampaign(campaignData: Omit<Campaign, 'id' | 'views' | 'interested' | 'sold' | 'createdAt' | 'updatedAt'>): Promise<{ success: boolean; campaignId?: string; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const vendorId = getCurrentUserId();
     if (!vendorId) throw new Error('Vendeur non connecté');
 
@@ -275,6 +279,7 @@ export async function createCampaign(campaignData: Omit<Campaign, 'id' | 'views'
  */
 export async function getActiveCampaigns(limitCount = 20): Promise<{ success: boolean; campaigns?: Campaign[]; error?: string }> {
   try {
+    const db = getFirebaseDb();
     let q = query(
       collection(db, Collections.CAMPAIGNS),
       where('status', '==', 'active'),
@@ -320,6 +325,7 @@ export async function getActiveCampaigns(limitCount = 20): Promise<{ success: bo
     // En cas d'erreur d'index, essayer sans orderBy
     try {
       console.log('⚠️ Tentative sans orderBy...');
+      const db = getFirebaseDb();
       const q = query(
         collection(db, Collections.CAMPAIGNS),
         limit(limitCount)
@@ -356,6 +362,7 @@ export async function getActiveCampaigns(limitCount = 20): Promise<{ success: bo
  */
 export async function getCampaign(campaignId: string): Promise<{ success: boolean; campaign?: Campaign; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const docSnap = await getDoc(doc(db, Collections.CAMPAIGNS, campaignId));
 
     if (docSnap.exists()) {
@@ -379,6 +386,7 @@ export async function getCampaign(campaignId: string): Promise<{ success: boolea
  */
 export async function updateCampaign(campaignId: string, data: Partial<Campaign>): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     await updateDoc(doc(db, Collections.CAMPAIGNS, campaignId), {
       ...data,
       updatedAt: serverTimestamp()
@@ -397,6 +405,7 @@ export async function updateCampaign(campaignId: string, data: Partial<Campaign>
  */
 export async function markAsInterested(campaignId: string): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const userId = getCurrentUserId();
     if (!userId) throw new Error('Utilisateur non connecté');
 
@@ -426,6 +435,7 @@ export async function markAsInterested(campaignId: string): Promise<{ success: b
  */
 export async function createOrder(orderData: Omit<Order, 'id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<{ success: boolean; orderId?: string; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const userId = getCurrentUserId();
     if (!userId) throw new Error('Utilisateur non connecté');
 
@@ -457,6 +467,7 @@ export async function createOrderWithItem(params: {
   paymentMethod?: string;
 }): Promise<{ success: boolean; orderId?: string; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const userId = getCurrentUserId();
     if (!userId) throw new Error('Utilisateur non connecté');
     if (!params.campaign?.id) throw new Error('Campagne invalide');
@@ -518,6 +529,7 @@ export async function createOrderWithItem(params: {
  */
 export async function getUserOrders(userId?: string): Promise<{ success: boolean; orders?: Order[]; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const uid = userId || getCurrentUserId();
     if (!uid) throw new Error('Utilisateur non connecté');
 
@@ -539,6 +551,7 @@ export async function getUserOrders(userId?: string): Promise<{ success: boolean
     console.error('❌ Erreur récupération commandes:', error);
     // Fallback (souvent nécessaire si l'index composite n'existe pas encore)
     try {
+      const db = getFirebaseDb();
       const uid = userId || getCurrentUserId();
       if (!uid) throw new Error('Utilisateur non connecté');
 
@@ -567,6 +580,7 @@ export async function getUserOrders(userId?: string): Promise<{ success: boolean
  */
 export async function updateOrderStatus(orderId: string, status: Order['status']): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     await updateDoc(doc(db, Collections.ORDERS, orderId), {
       status,
       updatedAt: serverTimestamp()
@@ -589,6 +603,7 @@ export async function updateOrderStatus(orderId: string, status: Order['status']
  */
 export async function addToCart(campaignId: string, quantity = 1): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const userId = getCurrentUserId();
     if (!userId) throw new Error('Utilisateur non connecté');
 
@@ -626,6 +641,7 @@ export async function addToCart(campaignId: string, quantity = 1): Promise<{ suc
  */
 export async function getCart(): Promise<{ success: boolean; cart?: any[]; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const userId = getCurrentUserId();
     if (!userId) throw new Error('Utilisateur non connecté');
 
@@ -663,6 +679,7 @@ export async function getCart(): Promise<{ success: boolean; cart?: any[]; error
  */
 export async function removeFromCart(cartItemId: string): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     await deleteDoc(doc(db, Collections.CART, cartItemId));
     console.log('✅ Retiré du panier');
     return { success: true };
@@ -677,6 +694,7 @@ export async function removeFromCart(cartItemId: string): Promise<{ success: boo
  */
 export async function clearCart(): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const userId = getCurrentUserId();
     if (!userId) throw new Error('Utilisateur non connecté');
 
@@ -706,6 +724,7 @@ export async function clearCart(): Promise<{ success: boolean; error?: string }>
  * Écouter les changements de campagnes
  */
 export function onCampaignsChange(callback: (campaigns: Campaign[]) => void) {
+  const db = getFirebaseDb();
   const q = query(
     collection(db, Collections.CAMPAIGNS),
     where('status', '==', 'active'),
@@ -725,6 +744,7 @@ export function onCampaignsChange(callback: (campaigns: Campaign[]) => void) {
  * Écouter les changements du panier
  */
 export function onCartChange(callback: (cart: any[]) => void) {
+  const db = getFirebaseDb();
   const userId = getCurrentUserId();
   if (!userId) return () => {};
 
@@ -769,6 +789,7 @@ export async function createVendorProfile(vendorData: {
   logo?: string;
 }): Promise<{ success: boolean; vendorId?: string; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const userId = getCurrentUserId();
     if (!userId) throw new Error('Utilisateur non connecté');
 
@@ -797,6 +818,7 @@ export async function createVendorProfile(vendorData: {
  */
 export async function getVendorProfile(vendorId?: string): Promise<{ success: boolean; vendor?: any; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const uid = vendorId || getCurrentUserId();
     if (!uid) throw new Error('ID vendeur requis');
 
@@ -818,6 +840,7 @@ export async function getVendorProfile(vendorId?: string): Promise<{ success: bo
  */
 export async function updateVendorProfile(data: any): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const userId = getCurrentUserId();
     if (!userId) throw new Error('Utilisateur non connecté');
 
@@ -839,6 +862,7 @@ export async function updateVendorProfile(data: any): Promise<{ success: boolean
  */
 export async function getVendorCampaigns(vendorId?: string): Promise<{ success: boolean; campaigns?: Campaign[]; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const uid = vendorId || getCurrentUserId();
     if (!uid) throw new Error('ID vendeur requis');
 
@@ -867,6 +891,7 @@ export async function getVendorCampaigns(vendorId?: string): Promise<{ success: 
  */
 export async function getVendorOrders(vendorId?: string): Promise<{ success: boolean; orders?: Order[]; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const uid = vendorId || getCurrentUserId();
     if (!uid) throw new Error('ID vendeur requis');
 
@@ -888,6 +913,7 @@ export async function getVendorOrders(vendorId?: string): Promise<{ success: boo
     console.error('❌ Erreur récupération commandes vendeur:', error);
     // Fallback (souvent nécessaire si l'index composite n'existe pas encore)
     try {
+      const db = getFirebaseDb();
       const uid = vendorId || getCurrentUserId();
       if (!uid) throw new Error('ID vendeur requis');
 
@@ -921,6 +947,7 @@ export async function getVendorOrders(vendorId?: string): Promise<{ success: boo
  */
 export async function getPendingCampaigns(): Promise<{ success: boolean; campaigns?: Campaign[]; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const q = query(
       collection(db, Collections.CAMPAIGNS),
       where('status', '==', 'pending'),
@@ -946,6 +973,7 @@ export async function getPendingCampaigns(): Promise<{ success: boolean; campaig
  */
 export async function approveCampaign(campaignId: string): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     await updateDoc(doc(db, Collections.CAMPAIGNS, campaignId), {
       status: 'active',
       updatedAt: serverTimestamp()
@@ -964,6 +992,7 @@ export async function approveCampaign(campaignId: string): Promise<{ success: bo
  */
 export async function rejectCampaign(campaignId: string, reason?: string): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     await updateDoc(doc(db, Collections.CAMPAIGNS, campaignId), {
       status: 'cancelled',
       rejectionReason: reason || 'Non conforme',
@@ -983,6 +1012,7 @@ export async function rejectCampaign(campaignId: string, reason?: string): Promi
  */
 export async function getPendingVendors(): Promise<{ success: boolean; vendors?: any[]; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const q = query(
       collection(db, Collections.VENDORS),
       where('status', '==', 'pending'),
@@ -1008,6 +1038,7 @@ export async function getPendingVendors(): Promise<{ success: boolean; vendors?:
  */
 export async function approveVendor(vendorId: string): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     await updateDoc(doc(db, Collections.VENDORS, vendorId), {
       status: 'active',
       approvedAt: serverTimestamp(),
@@ -1033,6 +1064,7 @@ export async function approveVendor(vendorId: string): Promise<{ success: boolea
  */
 export async function rejectVendor(vendorId: string, reason?: string): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     await updateDoc(doc(db, Collections.VENDORS, vendorId), {
       status: 'rejected',
       rejectionReason: reason || 'Non conforme',
@@ -1052,6 +1084,7 @@ export async function rejectVendor(vendorId: string, reason?: string): Promise<{
  */
 export async function getAllOrders(): Promise<{ success: boolean; orders?: Order[]; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const q = query(
       collection(db, Collections.ORDERS),
       orderBy('createdAt', 'desc'),
@@ -1077,6 +1110,7 @@ export async function getAllOrders(): Promise<{ success: boolean; orders?: Order
  */
 export async function getAllUsers(): Promise<{ success: boolean; users?: any[]; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const q = query(
       collection(db, Collections.USERS),
       orderBy('createdAt', 'desc'),
@@ -1102,6 +1136,7 @@ export async function getAllUsers(): Promise<{ success: boolean; users?: any[]; 
  */
 export async function getGlobalStats(): Promise<{ success: boolean; stats?: any; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const [campaignsSnap, ordersSnap, usersSnap, vendorsSnap] = await Promise.all([
       getDocs(collection(db, Collections.CAMPAIGNS)),
       getDocs(collection(db, Collections.ORDERS)),
@@ -1145,6 +1180,7 @@ export async function checkFirebaseHealth(): Promise<{
   error?: string;
 }> {
   try {
+    const db = getFirebaseDb();
     // Essayer de lire une campagne et une commande (sans forcer qu'il y en ait)
     await getDocs(query(collection(db, Collections.CAMPAIGNS), limit(1)));
     await getDocs(query(collection(db, Collections.ORDERS), limit(1)));

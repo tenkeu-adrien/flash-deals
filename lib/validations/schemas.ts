@@ -205,25 +205,16 @@ export const campaignSchema = z.object({
     .max(1000, 'La description ne peut pas dépasser 1000 caractères')
     .trim(),
   originalPrice: z
-    .number({
-      required_error: 'Le prix original est requis',
-      invalid_type_error: 'Le prix doit être un nombre',
-    })
+    .number()
     .positive('Le prix doit être positif')
     .min(100, 'Le prix minimum est 100 FCFA')
     .max(10000000, 'Le prix maximum est 10,000,000 FCFA'),
   discount: z
-    .number({
-      required_error: 'La réduction est requise',
-      invalid_type_error: 'La réduction doit être un nombre',
-    })
+    .number()
     .min(5, 'La réduction minimum est 5%')
     .max(90, 'La réduction maximum est 90%'),
   stock: z
-    .number({
-      required_error: 'Le stock est requis',
-      invalid_type_error: 'Le stock doit être un nombre',
-    })
+    .number()
     .int('Le stock doit être un nombre entier')
     .positive('Le stock doit être positif')
     .min(1, 'Le stock minimum est 1')
@@ -262,10 +253,7 @@ export type CampaignFormData = z.infer<typeof campaignSchema>;
  */
 export const orderSchema = z.object({
   quantity: z
-    .number({
-      required_error: 'La quantité est requise',
-      invalid_type_error: 'La quantité doit être un nombre',
-    })
+    .number()
     .int('La quantité doit être un nombre entier')
     .positive('La quantité doit être positive')
     .min(1, 'La quantité minimum est 1')
@@ -305,10 +293,7 @@ export type OrderFormData = z.infer<typeof orderSchema>;
  */
 export const reviewSchema = z.object({
   rating: z
-    .number({
-      required_error: 'La note est requise',
-      invalid_type_error: 'La note doit être un nombre',
-    })
+    .number()
     .int('La note doit être un nombre entier')
     .min(1, 'La note minimum est 1')
     .max(5, 'La note maximum est 5'),
@@ -397,7 +382,7 @@ export type AdminLoginFormData = z.infer<typeof adminLoginSchema>;
 export function formatZodErrors(errors: z.ZodError): Record<string, string> {
   const formattedErrors: Record<string, string> = {};
   
-  errors.errors.forEach((error) => {
+  errors.issues.forEach((error) => {
     const path = error.path.join('.');
     formattedErrors[path] = error.message;
   });

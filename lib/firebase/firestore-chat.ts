@@ -18,7 +18,7 @@ import {
   serverTimestamp,
   increment
 } from 'firebase/firestore';
-import { db } from './config';
+import { getFirebaseDb } from './config';
 import { getCurrentUserId } from './auth';
 
 // ============================================
@@ -62,6 +62,7 @@ export async function getOrCreateConversation(
   campaignImage?: string
 ): Promise<{ success: boolean; conversationId?: string; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const userId = getCurrentUserId();
     if (!userId) throw new Error('Utilisateur non connecté');
 
@@ -70,7 +71,6 @@ export async function getOrCreateConversation(
     const conversationSnap = await getDoc(conversationRef);
 
     if (!conversationSnap.exists()) {
-      // Créer la conversation
       await setDoc(conversationRef, {
         campaignId,
         userId,
@@ -91,7 +91,6 @@ export async function getOrCreateConversation(
     return { success: false, error: error.message };
   }
 }
-
 /**
  * Envoyer un message dans une conversation
  */
@@ -102,10 +101,10 @@ export async function sendChatMessage(
   senderName: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const senderId = getCurrentUserId();
     if (!senderId) throw new Error('Utilisateur non connecté');
 
-    // Ajouter le message
     const messageData: Omit<ChatMessageData, 'id'> = {
       conversationId,
       senderId,
@@ -120,14 +119,12 @@ export async function sendChatMessage(
       messageData
     );
 
-    // Mettre à jour la conversation
     const updateData: any = {
       lastMessage: message.trim(),
       lastMessageAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
 
-    // Incrémenter le compteur de non-lus
     if (senderRole === 'client') {
       updateData.unreadByAdmin = increment(1);
     } else {
@@ -151,6 +148,7 @@ export async function getChatMessages(
   conversationId: string
 ): Promise<{ success: boolean; messages?: ChatMessageData[]; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const q = query(
       collection(db, 'chats', conversationId, 'messages'),
       orderBy('createdAt', 'asc')
@@ -178,6 +176,7 @@ export async function markChatAsRead(
   role: 'client' | 'admin'
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const updateData = role === 'client' 
       ? { unreadByClient: 0 }
       : { unreadByAdmin: 0 };
@@ -198,6 +197,7 @@ export async function getUserConversations(
   userId?: string
 ): Promise<{ success: boolean; conversations?: ChatConversation[]; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const uid = userId || getCurrentUserId();
     if (!uid) throw new Error('Utilisateur non connecté');
 
@@ -230,6 +230,7 @@ export async function getAllConversations(): Promise<{
   error?: string 
 }> {
   try {
+    const db = getFirebaseDb();
     const q = query(
       collection(db, 'chats'),
       orderBy('lastMessageAt', 'desc'),
@@ -257,6 +258,7 @@ export function onChatMessagesChange(
   conversationId: string,
   callback: (messages: ChatMessageData[]) => void
 ) {
+  const db = getFirebaseDb();
   const q = query(
     collection(db, 'chats', conversationId, 'messages'),
     orderBy('createdAt', 'asc')
@@ -278,6 +280,7 @@ export function onConversationsChange(
   userId: string,
   callback: (conversations: ChatConversation[]) => void
 ) {
+  const db = getFirebaseDb();
   const q = query(
     collection(db, 'chats'),
     where('userId', '==', userId),

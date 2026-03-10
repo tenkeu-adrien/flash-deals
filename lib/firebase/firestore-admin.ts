@@ -13,13 +13,14 @@ import {
   doc,
   serverTimestamp
 } from 'firebase/firestore';
-import { db, Collections } from './config';
+import { getFirebaseDb, Collections } from './config';
 
 /**
  * Obtenir tous les vendeurs (admin)
  */
 export async function getAllVendors(): Promise<{ success: boolean; vendors?: any[]; error?: string }> {
   try {
+    const db = getFirebaseDb();
     const q = query(
       collection(db, Collections.VENDORS),
       orderBy('createdAt', 'desc')
@@ -44,6 +45,7 @@ export async function getAllVendors(): Promise<{ success: boolean; vendors?: any
  */
 export async function deactivateVendor(vendorId: string, reason?: string): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     await updateDoc(doc(db, Collections.VENDORS, vendorId), {
       status: 'rejected',
       deactivationReason: reason || 'Désactivé par l\'administrateur',
@@ -64,6 +66,7 @@ export async function deactivateVendor(vendorId: string, reason?: string): Promi
  */
 export async function reactivateVendor(vendorId: string): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     await updateDoc(doc(db, Collections.VENDORS, vendorId), {
       status: 'active',
       reactivatedAt: serverTimestamp(),
@@ -83,6 +86,7 @@ export async function reactivateVendor(vendorId: string): Promise<{ success: boo
  */
 export async function getAllCampaignsAdmin(statusFilter?: string): Promise<{ success: boolean; campaigns?: any[]; error?: string }> {
   try {
+    const db = getFirebaseDb();
     let q;
     
     if (statusFilter && statusFilter !== 'all') {
@@ -119,6 +123,7 @@ export async function getAllCampaignsAdmin(statusFilter?: string): Promise<{ suc
  */
 export async function suspendCampaign(campaignId: string, reason?: string): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     await updateDoc(doc(db, Collections.CAMPAIGNS, campaignId), {
       status: 'cancelled',
       suspensionReason: reason || 'Suspendue par l\'administrateur',
@@ -139,6 +144,7 @@ export async function suspendCampaign(campaignId: string, reason?: string): Prom
  */
 export async function reactivateCampaign(campaignId: string): Promise<{ success: boolean; error?: string }> {
   try {
+    const db = getFirebaseDb();
     await updateDoc(doc(db, Collections.CAMPAIGNS, campaignId), {
       status: 'active',
       reactivatedAt: serverTimestamp(),
