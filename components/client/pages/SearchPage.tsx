@@ -362,7 +362,7 @@ export default function SearchPage({ onNavigate }: SearchPageProps) {
                 key={campaign.id}
                 id={campaign.id!}
                 badge={campaign.sold > campaign.stock * 0.5 ? 'POPULAIRE' : 'NOUVEAU'}
-                timer={getTimeRemaining(campaign.endDate)}
+                endDate={campaign.endDate}
                 icon="📦"
                 title={campaign.title}
                 rating={`⭐⭐⭐⭐⭐ ${campaign.averageRating || 4.8}/5 (${campaign.reviewCount || 0} avis)`}

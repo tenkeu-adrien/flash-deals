@@ -7,10 +7,9 @@ import {
   Campaign,
   addToCart,
   markAsInterested,
-  addReview,
-  getCampaignReviews,
-  Review
+  getVendorProfile
 } from '@/lib/firebase/firestore';
+import { getOrCreateConversation } from '@/lib/firebase/firestore-chat';
 import { useClientStore } from '@/lib/stores/clientStore';
 
 interface ProductPageProps {
@@ -22,11 +21,10 @@ export default function ProductPage({ onNavigate }: ProductPageProps) {
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [addingToCart, setAddingToCart] = useState(false);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [loadingReviews, setLoadingReviews] = useState(true);
-  const [newRating, setNewRating] = useState(5);
-  const [newComment, setNewComment] = useState('');
-  const [submittingReview, setSubmittingReview] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState<string>('');
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [vendorInfo, setVendorInfo] = useState<any>(null);
+  const [loadingVendor, setLoadingVendor] = useState(false);
   const { user, selectedCampaignId } = useClientStore();
 
   useEffect(() => {
@@ -35,37 +33,119 @@ export default function ProductPage({ onNavigate }: ProductPageProps) {
     }
   }, [selectedCampaignId]);
 
+  // Effet pour mettre à jour le chronomètre en temps réel
+  useEffect(() => {
+    if (!campaign?.endDate) return;
+
+    const updateTimer = () => {
+      let end: Date;
+      if (campaign.endDate && typeof campaign.endDate === 'object' && 'toDate' in campaign.endDate) {
+        // C'est un Timestamp Firebase
+        end = (campaign.endDate as any).toDate();
+      } else {
+        // C'est déjà un Date ou une string
+        end = new Date(campaign.endDate);
+      }
+      
+      const now = new Date();
+      const diff = end.getTime() - now.getTime();
+      
+      if (diff <= 0) {
+        setTimeRemaining('Expiré');
+        return;
+      }
+      
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      
+      // Format: 01h 05m 30s (avec zéros devant si nécessaire)
+      const formattedHours = hours.toString().padStart(2, '0');
+      const formattedMinutes = minutes.toString().padStart(2, '0');
+      const formattedSeconds = seconds.toString().padStart(2, '0');
+      
+      setTimeRemaining(`${formattedHours}h ${formattedMinutes}m ${formattedSeconds}s`);
+    };
+
+    // Mettre à jour immédiatement
+    updateTimer();
+
+    // Mettre à jour toutes les secondes
+    const interval = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(interval);
+  }, [campaign]);
+
   const loadCampaign = async () => {
     if (!selectedCampaignId) return;
 
     const result = await getCampaign(selectedCampaignId);
     if (result.success && result.campaign) {
       setCampaign(result.campaign);
-      // Charger les avis pour cette campagne
-      loadReviews(result.campaign.id!);
+      // Initialiser le temps restant
+      let end: Date;
+      if (result.campaign.endDate && typeof result.campaign.endDate === 'object' && 'toDate' in result.campaign.endDate) {
+        // C'est un Timestamp Firebase
+        end = (result.campaign.endDate as any).toDate();
+      } else {
+        // C'est déjà un Date ou une string
+        end = new Date(result.campaign.endDate);
+      }
+      
+      const now = new Date();
+      const diff = end.getTime() - now.getTime();
+      
+      if (diff <= 0) {
+        setTimeRemaining('Expiré');
+      } else {
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        setTimeRemaining(`${hours}h ${minutes}m ${seconds}s`);
+      }
+      
+      // Charger les infos du vendeur
+      loadVendorInfo(result.campaign.vendorId);
     }
     setLoading(false);
   };
 
-  const loadReviews = async (campaignId: string) => {
-    setLoadingReviews(true);
-    const res = await getCampaignReviews(campaignId, 20);
-    if (res.success && res.reviews) {
-      setReviews(res.reviews);
+  const loadVendorInfo = async (vendorId: string) => {
+    setLoadingVendor(true);
+    const result = await getVendorProfile(vendorId);
+    if (result.success && result.vendor) {
+      setVendorInfo(result.vendor);
     }
-    setLoadingReviews(false);
+    setLoadingVendor(false);
   };
+
+
 
   const handleAddToCart = async () => {
     if (!campaign?.id) return;
 
     setAddingToCart(true);
+
+    // 1. Ajouter au panier local (Zustand) immédiatement pour une UX rapide
+    const { addToCart: addToLocalCart } = useClientStore.getState();
+    addToLocalCart({
+      id: `${user?.uid}_${campaign.id}`,
+      campaignId: campaign.id,
+      quantity: quantity,
+      price: campaign.currentPrice,
+      campaign: campaign
+    });
+
+    // 2. Synchroniser avec Firebase en arrière-plan
     const result = await addToCart(campaign.id, quantity);
 
     if (result.success) {
-      alert('✅ Produit ajouté au panier!');
+      // Redirection silencieuse vers le panier
       onNavigate('cart');
     } else {
+      // En cas d'erreur, retirer du panier local
+      const { removeFromCart } = useClientStore.getState();
+      removeFromCart(`${user?.uid}_${campaign.id}`);
       alert('❌ ' + (result.error || 'Erreur lors de l\'ajout au panier'));
     }
 
@@ -81,10 +161,35 @@ export default function ProductPage({ onNavigate }: ProductPageProps) {
     }
   };
 
+  const handleOpenChat = async () => {
+    if (!campaign?.id) return;
+
+    // Créer ou récupérer la conversation
+    const result = await getOrCreateConversation(
+      campaign.id,
+      campaign.title,
+      campaign.images?.[0]
+    );
+
+    if (result.success) {
+      onNavigate('chat');
+    } else {
+      alert('❌ Erreur lors de l\'ouverture du chat');
+    }
+  };
+
   const getTimeRemaining = (endDate: any) => {
     if (!endDate) return '0h 0min';
     
-    const end = endDate.toDate ? endDate.toDate() : new Date(endDate);
+    let end: Date;
+    if (endDate && typeof endDate === 'object' && 'toDate' in endDate) {
+      // C'est un Timestamp Firebase
+      end = (endDate as any).toDate();
+    } else {
+      // C'est déjà un Date ou une string
+      end = new Date(endDate);
+    }
+    
     const now = new Date();
     const diff = end.getTime() - now.getTime();
     
@@ -96,42 +201,7 @@ export default function ProductPage({ onNavigate }: ProductPageProps) {
     return `${hours}h ${minutes}min`;
   };
 
-  const handleSubmitReview = async () => {
-    if (!campaign?.id) return;
 
-    if (!user) {
-      alert('Vous devez être connecté pour laisser un avis.');
-      onNavigate('login');
-      return;
-    }
-
-    if (!newComment.trim()) {
-      alert('Veuillez écrire un avis.');
-      return;
-    }
-
-    setSubmittingReview(true);
-    const res = await addReview(campaign.id, newRating, newComment.trim());
-
-    if (res.success) {
-      setNewComment('');
-      // Recharger les avis et la campagne (pour mettre à jour la moyenne)
-      await loadReviews(campaign.id);
-      await loadCampaign();
-      alert('✅ Merci pour votre avis !');
-    } else {
-      alert('❌ ' + (res.error || 'Erreur lors de l\'envoi de votre avis'));
-    }
-
-    setSubmittingReview(false);
-  };
-
-  const computedAverage =
-    reviews.length > 0
-      ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length
-      : campaign?.averageRating || 0;
-
-  const totalReviews = reviews.length || campaign?.reviewCount || 0;
 
   if (loading) {
     return (
@@ -208,32 +278,123 @@ export default function ProductPage({ onNavigate }: ProductPageProps) {
           fontWeight: 'bold',
           backdropFilter: 'blur(10px)'
         }}>
-          ⏰ {getTimeRemaining(campaign.endDate)}
+          ⏰ {timeRemaining || getTimeRemaining(campaign.endDate)}
         </div>
+        
+        {/* Slider d'images */}
         <div style={{
           width: '100%',
           height: '320px',
-          background: campaign.images?.[0] 
-            ? `url(${campaign.images[0]}) center/cover` 
-            : 'linear-gradient(to bottom, #FF6600, #000)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '80px'
+          position: 'relative',
+          overflow: 'hidden'
         }}>
-          {!campaign.images?.[0] && '📦'}
+          {campaign.images && campaign.images.length > 0 ? (
+            <>
+              <div style={{
+                width: '100%',
+                height: '100%',
+                background: `url(${campaign.images[currentImageIndex]}) center/cover`,
+                transition: 'background 0.3s ease'
+              }} />
+              
+              {/* Contrôles du slider */}
+              {campaign.images.length > 1 && (
+                <>
+                  <button
+                    onClick={() => setCurrentImageIndex((prev) => prev === 0 ? campaign.images!.length - 1 : prev - 1)}
+                    style={{
+                      position: 'absolute',
+                      left: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                      color: 'white',
+                      border: 'none',
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      cursor: 'pointer',
+                      fontSize: '20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    ←
+                  </button>
+                  
+                  <button
+                    onClick={() => setCurrentImageIndex((prev) => prev === campaign.images!.length - 1 ? 0 : prev + 1)}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                      color: 'white',
+                      border: 'none',
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      cursor: 'pointer',
+                      fontSize: '20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    →
+                  </button>
+                  
+                  {/* Indicateurs de position */}
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '12px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    display: 'flex',
+                    gap: '8px'
+                  }}>
+                    {campaign.images.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setCurrentImageIndex(index)}
+                        style={{
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          backgroundColor: index === currentImageIndex ? 'var(--color-orange)' : 'rgba(255, 255, 255, 0.5)',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 0
+                        }}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            <div style={{
+              width: '100%',
+              height: '100%',
+              background: 'linear-gradient(to bottom, #FF6600, #000)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '80px'
+            }}>
+              📦
+            </div>
+          )}
         </div>
       </div>
 
       {/* Contenu */}
       <div style={{ padding: 'var(--spacing-lg)' }}>
-        <h1 style={{ fontSize: '24px', marginBottom: 'var(--spacing-sm)' }}>
+        <h1 style={{ fontSize: '24px', marginBottom: 'var(--spacing-md)' }}>
           {campaign.title}
         </h1>
-
-        <div style={{ color: '#FFD700', fontSize: '14px', marginBottom: 'var(--spacing-md)' }}>
-          ⭐⭐⭐⭐⭐ {computedAverage ? computedAverage.toFixed(1) : '4.8'}/5 ({totalReviews} avis)
-        </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-md)' }}>
           <span style={{
@@ -265,7 +426,7 @@ export default function ProductPage({ onNavigate }: ProductPageProps) {
         {/* Stock */}
         <div style={{ marginBottom: 'var(--spacing-lg)' }}>
           <p style={{ fontSize: '14px', color: 'var(--color-gray-medium)', marginBottom: '4px' }}>
-            📦 Plus que {campaign.stock}/{campaign.stock + campaign.sold} unités disponibles
+            📦 Reste {campaign.stock} produits en stock
           </p>
           <div style={{
             width: '100%',
@@ -311,6 +472,56 @@ export default function ProductPage({ onNavigate }: ProductPageProps) {
           <div style={{ fontSize: '14px', color: 'var(--color-gray-medium)' }}>
             📍 {campaign.location}
           </div>
+        </div>
+
+        {/* Infos de la boutique */}
+        <div style={{
+          backgroundColor: '#1a1a1a',
+          padding: 'var(--spacing-md)',
+          borderRadius: 'var(--border-radius)',
+          marginBottom: 'var(--spacing-md)',
+          border: '1px solid #333'
+        }}>
+          <h3 style={{ fontSize: '16px', marginBottom: 'var(--spacing-sm)' }}>🏪 Informations de la boutique</h3>
+          
+          {loadingVendor ? (
+            <div style={{ fontSize: '14px', color: 'var(--color-gray-medium)' }}>
+              Chargement des informations du vendeur...
+            </div>
+          ) : vendorInfo ? (
+            <>
+              <div style={{ fontSize: '14px', marginBottom: 'var(--spacing-xs)' }}>
+                <strong>Nom de la boutique :</strong> {vendorInfo.businessName || 'Non spécifié'}
+              </div>
+              <div style={{ fontSize: '14px', marginBottom: 'var(--spacing-xs)' }}>
+                <strong>Type d'activité :</strong> {vendorInfo.businessType || 'Non spécifié'}
+              </div>
+              <div style={{ fontSize: '14px', marginBottom: 'var(--spacing-xs)' }}>
+                <strong>Ville :</strong> {vendorInfo.city || 'Non spécifié'}
+              </div>
+              <div style={{ fontSize: '14px', marginBottom: 'var(--spacing-xs)' }}>
+                <strong>Adresse :</strong> {vendorInfo.address || 'Non spécifié'}
+              </div>
+              <div style={{ fontSize: '14px', marginBottom: 'var(--spacing-xs)' }}>
+                <strong>Téléphone :</strong> {vendorInfo.phone || 'Non spécifié'}
+              </div>
+              <div style={{ fontSize: '14px', marginBottom: 'var(--spacing-xs)' }}>
+                <strong>Email :</strong> {vendorInfo.email || 'Non spécifié'}
+              </div>
+              {vendorInfo.description && (
+                <div style={{ fontSize: '14px', color: 'var(--color-gray-medium)', marginTop: 'var(--spacing-xs)' }}>
+                  <strong>Description :</strong> {vendorInfo.description}
+                </div>
+              )}
+              <div style={{ fontSize: '14px', color: 'var(--color-orange)', marginTop: 'var(--spacing-xs)' }}>
+                <strong>Note de la boutique :</strong> ⭐ {vendorInfo.rating?.toFixed(1) || '0.0'}/5 ({vendorInfo.reviewCount || 0} avis)
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: '14px', color: 'var(--color-gray-medium)' }}>
+              Informations du vendeur non disponibles
+            </div>
+          )}
         </div>
 
         {/* Quantité */}
@@ -400,143 +611,26 @@ export default function ProductPage({ onNavigate }: ProductPageProps) {
           ⭐ Je suis intéressé ({campaign.interested} personnes)
         </button>
 
-        {/* Avis clients */}
-        <div
+        <button
+          onClick={handleOpenChat}
           style={{
-            marginTop: 'var(--spacing-lg)',
-            paddingTop: 'var(--spacing-lg)',
-            borderTop: '1px solid #333'
+            width: '100%',
+            padding: '14px',
+            marginTop: 'var(--spacing-sm)',
+            borderRadius: 'var(--border-radius)',
+            border: '2px solid var(--color-orange)',
+            backgroundColor: 'transparent',
+            color: 'var(--color-orange)',
+            fontSize: '15px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'var(--transition)'
           }}
         >
-          <h3 style={{ fontSize: '18px', marginBottom: 'var(--spacing-md)' }}>💬 Avis des clients</h3>
+          💬 Poser une question
+        </button>
 
-          {/* Formulaire d'avis */}
-          <div
-            style={{
-              backgroundColor: '#1a1a1a',
-              padding: 'var(--spacing-md)',
-              borderRadius: 'var(--border-radius)',
-              border: '1px solid #333',
-              marginBottom: 'var(--spacing-md)'
-            }}
-          >
-            <p style={{ fontSize: '14px', marginBottom: 'var(--spacing-sm)' }}>
-              Notez ce produit et laissez un avis.
-            </p>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 'var(--spacing-sm)' }}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  onClick={() => setNewRating(star)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '22px',
-                    color: newRating >= star ? '#FFD700' : '#555'
-                  }}
-                >
-                  ★
-                </button>
-              ))}
-              <span style={{ fontSize: '14px', color: 'var(--color-gray-medium)' }}>
-                {newRating}/5
-              </span>
-            </div>
-
-            <textarea
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Partagez votre expérience avec ce produit..."
-              rows={3}
-              style={{
-                width: '100%',
-                padding: '12px',
-                borderRadius: '8px',
-                border: '1px solid #333',
-                backgroundColor: '#0a0a0a',
-                color: 'white',
-                fontSize: '14px',
-                marginBottom: 'var(--spacing-sm)',
-                resize: 'vertical'
-              }}
-            />
-
-            <Button
-              onClick={handleSubmitReview}
-              variant="primary"
-              size="block"
-              disabled={submittingReview}
-            >
-              {submittingReview ? '⏳ Envoi de votre avis...' : 'Envoyer mon avis'}
-            </Button>
-          </div>
-
-          {/* Liste des avis */}
-          {loadingReviews ? (
-            <p style={{ fontSize: '14px', color: 'var(--color-gray-medium)' }}>Chargement des avis...</p>
-          ) : reviews.length === 0 ? (
-            <p style={{ fontSize: '14px', color: 'var(--color-gray-medium)' }}>
-              Aucun avis pour le moment. Soyez le premier à donner votre avis !
-            </p>
-          ) : (
-            <div style={{ display: 'grid', gap: 'var(--spacing-sm)' }}>
-              {reviews.map((review) => {
-                const date =
-                  (review.createdAt as any)?.toDate
-                    ? (review.createdAt as any).toDate()
-                    : new Date(review.createdAt);
-
-                return (
-                  <div
-                    key={review.id}
-                    style={{
-                      backgroundColor: '#1a1a1a',
-                      padding: 'var(--spacing-sm)',
-                      borderRadius: '8px',
-                      border: '1px solid #333'
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: '4px'
-                      }}
-                    >
-                      <div style={{ color: '#FFD700', fontSize: '14px' }}>
-                        {'★'.repeat(review.rating)}{' '}
-                        <span style={{ color: 'var(--color-gray-medium)' }}>
-                          {'☆'.repeat(5 - review.rating)}
-                        </span>
-                      </div>
-                      <span
-                        style={{
-                          fontSize: '12px',
-                          color: 'var(--color-gray-medium)'
-                        }}
-                      >
-                        {date.toLocaleDateString('fr-FR')}
-                      </span>
-                    </div>
-                    <p
-                      style={{
-                        fontSize: '14px',
-                        color: 'var(--color-gray-light)',
-                        lineHeight: 1.5
-                      }}
-                    >
-                      {review.comment}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
       </div>
 
       <div style={{ height: '80px' }}></div>

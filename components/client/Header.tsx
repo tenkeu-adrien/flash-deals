@@ -10,7 +10,7 @@ interface HeaderProps {
 
 export default function Header({ onNavigate }: HeaderProps) {
   const { isAuthenticated, cart } = useClientStore();
-  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const cartCount = cart.length; // Nombre de produits différents
 
   return (
     <header className="header">

@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { getCart, removeFromCart, createOrderWithItem, clearCart } from '@/lib/firebase/firestore';
+import ToastContainer from '@/components/ui/ToastContainer';
+import { useToast } from '@/lib/hooks/useToast';
+import { createOrderWithItem, clearCart } from '@/lib/firebase/firestore';
+import { getUserAddress, saveUserAddress } from '@/lib/firebase/firestore-address';
 import { useClientStore } from '@/lib/stores/clientStore';
 
 interface CartPageProps {
@@ -11,86 +14,110 @@ interface CartPageProps {
 }
 
 export default function CartPage({ onNavigate }: CartPageProps) {
-  const [cart, setCart] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { cart: localCart, removeFromCart: removeFromLocalCart, updateQuantity, user } = useClientStore();
+  const { toasts, removeToast, success, error, warning } = useToast();
+  const [loading, setLoading] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
-  const [showCheckout, setShowCheckout] = useState(false);
   const [deliveryAddress, setDeliveryAddress] = useState({
     street: '',
     city: '',
     region: '',
     phone: ''
   });
-  const { user } = useClientStore();
+  const [savedAddress, setSavedAddress] = useState<any>(null);
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [savingAddress, setSavingAddress] = useState(false);
 
+  // Charger l'adresse sauvegardée de l'utilisateur
   useEffect(() => {
-    loadCart();
-  }, []);
-
-  const loadCart = async () => {
-    const result = await getCart();
-    if (result.success && result.cart) {
-      setCart(result.cart);
-    }
-    setLoading(false);
-  };
-
-  const handleRemove = async (itemId: string) => {
-    const result = await removeFromCart(itemId);
-    if (result.success) {
-      setCart(cart.filter(item => item.id !== itemId));
-    }
-  };
-
-  const handleCheckout = async () => {
-    if (!deliveryAddress.street || !deliveryAddress.city || !deliveryAddress.region || !deliveryAddress.phone) {
-      alert('Veuillez remplir tous les champs de livraison');
-      return;
-    }
-
-    setCheckingOut(true);
-
-    try {
-      // Créer une commande pour chaque article (1 article = 1 commande dans ce design)
-      const orderPromises = cart.map((item) =>
-        createOrderWithItem({
-          campaign: {
-            id: item.campaignId,
-            vendorId: item.campaign?.vendorId,
-            title: item.campaign?.title,
-            images: item.campaign?.images || [],
-            currentPrice: item.campaign?.currentPrice || 0
-          },
-          quantity: item.quantity,
-          deliveryAddress
-        })
-      );
-
-      const results = await Promise.all(orderPromises);
-      const failed = results.filter((r) => !r.success);
-
-      if (failed.length === 0) {
-        await clearCart();
-        alert('✅ Commande passée avec succès! Vous recevrez une confirmation par SMS.');
-        onNavigate('dashboard');
-      } else {
-        const errors = failed.map((r) => r.error || 'Erreur inconnue').join('\n');
-        alert(`❌ Certaines commandes ont échoué:\n\n${errors}`);
+    const loadSavedAddress = async () => {
+      if (user) {
+        setLoading(true);
+        const result = await getUserAddress(user.uid);
+        if (result.success && result.address) {
+          setSavedAddress(result.address);
+          setDeliveryAddress({
+            street: result.address.street || '',
+            city: result.address.city || '',
+            region: result.address.region || '',
+            phone: result.address.phone || ''
+          });
+        }
+        setLoading(false);
       }
-    } finally {
-      setCheckingOut(false);
-    }
+    };
 
+    loadSavedAddress();
+  }, [user]);
+
+  const calculateSubtotal = () => {
+    return localCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   };
 
   const calculateTotal = () => {
-    return cart.reduce((sum, item) => sum + (item.campaign.currentPrice * item.quantity), 0);
+    const subtotal = calculateSubtotal();
+    const deliveryFee = 1500; // Frais de livraison fixe
+    return subtotal + deliveryFee;
   };
 
   const calculateSavings = () => {
-    return cart.reduce((sum, item) => 
-      sum + ((item.campaign.originalPrice - item.campaign.currentPrice) * item.quantity), 0
-    );
+    // Pour l'instant, retourner 0
+    // Plus tard, on pourra calculer les économies si on a les prix originaux
+    return 0;
+  };
+
+  const handleRemove = (itemId: string) => {
+    removeFromLocalCart(itemId);
+  };
+
+  const handleUpdateQuantity = (itemId: string, newQuantity: number) => {
+    if (newQuantity < 1) {
+      handleRemove(itemId);
+    } else {
+      updateQuantity(itemId, newQuantity);
+    }
+  };
+
+  const handleSaveAddress = async () => {
+    if (!deliveryAddress.street || !deliveryAddress.city || !deliveryAddress.region || !deliveryAddress.phone) {
+      warning('Veuillez remplir tous les champs de livraison');
+      return;
+    }
+
+    if (!user) {
+      warning('Vous devez être connecté pour sauvegarder une adresse');
+      return;
+    }
+
+    setSavingAddress(true);
+    try {
+      const result = await saveUserAddress(deliveryAddress);
+      if (result.success) {
+        setSavedAddress({ ...deliveryAddress, userId: user.uid });
+        setShowAddressForm(false);
+        success('Adresse sauvegardée pour vos prochaines commandes!');
+      } else {
+        error('Erreur lors de la sauvegarde: ' + result.error);
+      }
+    } finally {
+      setSavingAddress(false);
+    }
+  };
+
+  const handleCheckout = () => {
+    if (localCart.length === 0) {
+      warning('Votre panier est vide');
+      return;
+    }
+
+    if (!user) {
+      warning('Vous devez être connecté pour passer une commande');
+      onNavigate('login');
+      return;
+    }
+
+    // Rediriger vers la nouvelle page de checkout
+    onNavigate('new-checkout');
   };
 
   if (loading) {
@@ -104,6 +131,8 @@ export default function CartPage({ onNavigate }: CartPageProps) {
 
   return (
     <div>
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+      
       <header className="header">
         <button 
           onClick={() => onNavigate('dashboard')}
@@ -122,7 +151,7 @@ export default function CartPage({ onNavigate }: CartPageProps) {
       </header>
 
       <div style={{ padding: 'var(--spacing-lg)' }}>
-        {cart.length === 0 ? (
+        {localCart.length === 0 ? (
           <div style={{
             textAlign: 'center',
             padding: '40px',
@@ -144,10 +173,10 @@ export default function CartPage({ onNavigate }: CartPageProps) {
             {/* Articles */}
             <div style={{ marginBottom: 'var(--spacing-lg)' }}>
               <h2 style={{ fontSize: '18px', marginBottom: 'var(--spacing-md)' }}>
-                Articles ({cart.length})
+                Articles ({localCart.length})
               </h2>
 
-              {cart.map((item) => (
+              {localCart.map((item) => (
                 <div
                   key={item.id}
                   style={{
@@ -164,21 +193,19 @@ export default function CartPage({ onNavigate }: CartPageProps) {
                     width: '80px',
                     height: '80px',
                     borderRadius: '8px',
-                    background: item.campaign.images?.[0]
-                      ? `url(${item.campaign.images[0]}) center/cover`
-                      : '#2a2a2a',
+                    background: '#2a2a2a',
                     flexShrink: 0,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: '32px'
                   }}>
-                    {!item.campaign.images?.[0] && '📦'}
+                    📦
                   </div>
 
                   <div style={{ flex: 1 }}>
                     <h3 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>
-                      {item.campaign.title}
+                      Produit #{item.campaignId}
                     </h3>
                     <div style={{
                       fontSize: '18px',
@@ -186,7 +213,7 @@ export default function CartPage({ onNavigate }: CartPageProps) {
                       color: 'var(--color-orange)',
                       margin: 'var(--spacing-xs) 0'
                     }}>
-                      {(item.campaign.currentPrice * item.quantity).toLocaleString()} XAF
+                      {(item.price * item.quantity).toLocaleString()} XAF
                     </div>
                     <div style={{
                       display: 'flex',
@@ -195,7 +222,38 @@ export default function CartPage({ onNavigate }: CartPageProps) {
                       marginTop: 'var(--spacing-xs)'
                     }}>
                       <span style={{ fontSize: '14px', color: 'var(--color-gray-medium)' }}>
-                        Quantité: {item.quantity}
+                        Quantité: 
+                        <button
+                          onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                          style={{
+                            margin: '0 8px',
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '4px',
+                            border: '1px solid #333',
+                            backgroundColor: '#222',
+                            color: 'var(--color-white)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          -
+                        </button>
+                        {item.quantity}
+                        <button
+                          onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                          style={{
+                            margin: '0 8px',
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '4px',
+                            border: '1px solid #333',
+                            backgroundColor: '#222',
+                            color: 'var(--color-white)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          +
+                        </button>
                       </span>
                       <button
                         onClick={() => handleRemove(item.id)}
@@ -214,6 +272,116 @@ export default function CartPage({ onNavigate }: CartPageProps) {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Adresse de livraison */}
+            <div style={{
+              backgroundColor: '#1a1a1a',
+              borderRadius: 'var(--border-radius)',
+              padding: 'var(--spacing-md)',
+              border: '1px solid #333',
+              marginBottom: 'var(--spacing-lg)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
+                <h3 style={{ fontSize: '16px' }}>
+                  📦 Adresse de livraison
+                </h3>
+                {savedAddress && !showAddressForm && (
+                  <button
+                    onClick={() => setShowAddressForm(true)}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid var(--color-orange)',
+                      color: 'var(--color-orange)',
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ✏️ Modifier
+                  </button>
+                )}
+              </div>
+              
+              {savedAddress && !showAddressForm ? (
+                <div style={{ padding: 'var(--spacing-sm)', backgroundColor: '#222', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '14px', marginBottom: '4px' }}>
+                    <strong>Adresse:</strong> {savedAddress.street}
+                  </div>
+                  <div style={{ fontSize: '14px', marginBottom: '4px' }}>
+                    <strong>Ville:</strong> {savedAddress.city}
+                  </div>
+                  <div style={{ fontSize: '14px', marginBottom: '4px' }}>
+                    <strong>Région:</strong> {savedAddress.region}
+                  </div>
+                  <div style={{ fontSize: '14px' }}>
+                    <strong>Téléphone:</strong> {savedAddress.phone}
+                  </div>
+                  <p style={{ fontSize: '12px', color: 'var(--color-gray-medium)', marginTop: 'var(--spacing-sm)' }}>
+                    💡 Cette adresse est sauvegardée pour vos prochaines commandes
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: 'grid', gap: 'var(--spacing-sm)' }}>
+                    <Input
+                      label="Rue et numéro"
+                      value={deliveryAddress.street}
+                      onChange={(e) => setDeliveryAddress({...deliveryAddress, street: e.target.value})}
+                      placeholder="Ex: Rue 1234, Quartier..."
+                    />
+                    <Input
+                      label="Ville"
+                      value={deliveryAddress.city}
+                      onChange={(e) => setDeliveryAddress({...deliveryAddress, city: e.target.value})}
+                      placeholder="Ex: Douala"
+                    />
+                    <Input
+                      label="Région"
+                      value={deliveryAddress.region}
+                      onChange={(e) => setDeliveryAddress({...deliveryAddress, region: e.target.value})}
+                      placeholder="Ex: Littoral"
+                    />
+                    <Input
+                      label="Téléphone"
+                      value={deliveryAddress.phone}
+                      onChange={(e) => setDeliveryAddress({...deliveryAddress, phone: e.target.value})}
+                      placeholder="Ex: 6XXXXXXXX"
+                    />
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: 'var(--spacing-sm)', marginTop: 'var(--spacing-md)' }}>
+                    <Button
+                      onClick={handleSaveAddress}
+                      variant="secondary"
+                      disabled={savingAddress}
+                    >
+                      {savingAddress ? '⏳ Sauvegarde...' : '💾 Sauvegarder'}
+                    </Button>
+                    {savedAddress && (
+                      <Button
+                        onClick={() => {
+                          setShowAddressForm(false);
+                          setDeliveryAddress({
+                            street: savedAddress.street || '',
+                            city: savedAddress.city || '',
+                            region: savedAddress.region || '',
+                            phone: savedAddress.phone || ''
+                          });
+                        }}
+                        variant="outline"
+                      >
+                        Annuler
+                      </Button>
+                    )}
+                  </div>
+                  
+                  <p style={{ fontSize: '12px', color: 'var(--color-gray-medium)', marginTop: 'var(--spacing-sm)' }}>
+                    💡 Cette adresse sera sauvegardée pour vos prochaines commandes
+                  </p>
+                </>
+              )}
             </div>
 
             {/* Résumé */}
@@ -235,7 +403,7 @@ export default function CartPage({ onNavigate }: CartPageProps) {
                 fontSize: '15px'
               }}>
                 <span>Sous-total</span>
-                <span>{calculateTotal().toLocaleString()} XAF</span>
+                <span>{calculateSubtotal().toLocaleString()} XAF</span>
               </div>
 
               <div style={{
@@ -245,7 +413,7 @@ export default function CartPage({ onNavigate }: CartPageProps) {
                 fontSize: '15px'
               }}>
                 <span>Livraison</span>
-                <span style={{ color: 'var(--color-green)' }}>Gratuite</span>
+                <span>1 500 XAF</span>
               </div>
 
               <div style={{
@@ -279,12 +447,12 @@ export default function CartPage({ onNavigate }: CartPageProps) {
 
             {/* Bouton Commander */}
             <Button
-              onClick={() => onNavigate('checkout')}
+              onClick={handleCheckout}
               variant="primary"
               size="block"
-              disabled={cart.length === 0}
+              disabled={checkingOut || localCart.length === 0}
             >
-              Passer la commande →
+              {checkingOut ? '⏳ Traitement...' : 'Passer la commande →'}
             </Button>
           </>
         )}

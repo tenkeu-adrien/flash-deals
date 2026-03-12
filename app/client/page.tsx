@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect } from 'react';
 import { useClientStore } from '@/lib/stores/clientStore';
+import { getCart } from '@/lib/firebase/firestore';
 import Header from '@/components/client/Header';
 import BottomNav from '@/components/client/BottomNav';
 import HomePage from '@/components/client/pages/HomePage';
@@ -17,10 +18,35 @@ import ProductPage from '@/components/client/pages/ProductPage';
 import CartPage from '@/components/client/pages/CartPage';
 import ProfilePage from '@/components/client/pages/ProfilePage';
 import NotificationsPage from '@/components/client/pages/NotificationsPage';
+import SimpleCheckoutPage from '@/components/client/pages/SimpleCheckoutPage';
 import NewCheckoutPage from '@/components/client/pages/NewCheckoutPage';
+import ChatPage from '@/components/client/pages/ChatPage';
 
 export default function ClientApp() {
-  const { currentPage, setCurrentPage, isAuthenticated } = useClientStore();
+  const { currentPage, setCurrentPage, isAuthenticated, user, setCart } = useClientStore();
+
+  // Synchroniser le panier Firebase avec le panier local au démarrage
+  useEffect(() => {
+    const syncCart = async () => {
+      if (isAuthenticated && user) {
+        const result = await getCart();
+        if (result.success && result.cart) {
+          // Convertir le format Firebase vers le format Zustand
+          const cartItems = result.cart.map((item: any) => ({
+            id: item.id,
+            campaignId: item.campaignId,
+            quantity: item.quantity,
+            price: item.price,
+            campaign: item.campaign
+          }));
+          setCart(cartItems);
+          console.log('✅ Panier synchronisé:', cartItems.length, 'articles');
+        }
+      }
+    };
+
+    syncCart();
+  }, [isAuthenticated, user]);
 
   const renderPage = () => {
     switch (currentPage) {
@@ -45,11 +71,15 @@ export default function ClientApp() {
       case 'cart':
         return <CartPage onNavigate={setCurrentPage} />;
       case 'checkout':
-        return <NewCheckoutPage />;
+        return <SimpleCheckoutPage />;
+      case 'new-checkout':
+        return <NewCheckoutPage onNavigate={setCurrentPage} />;
       case 'profile':
         return <ProfilePage onNavigate={setCurrentPage} />;
       case 'notifications':
         return <NotificationsPage onNavigate={setCurrentPage} />;
+      case 'chat':
+        return <ChatPage onNavigate={setCurrentPage} />;
       default:
         return <HomePage onNavigate={setCurrentPage} />;
     }
@@ -73,7 +103,7 @@ export default function ClientApp() {
         </motion.div>
       </AnimatePresence>
 
-      {isAuthenticated && ['dashboard', 'search', 'cart', 'profile', 'notifications'].includes(currentPage) && (
+      {isAuthenticated && ['dashboard', 'search', 'cart', 'profile', 'notifications', 'chat'].includes(currentPage) && (
         <BottomNav currentPage={currentPage} onNavigate={setCurrentPage} />
       )}
     </div>

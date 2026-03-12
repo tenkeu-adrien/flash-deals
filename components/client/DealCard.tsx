@@ -1,12 +1,13 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 
 interface DealCardProps {
   id: string;
   badge?: string;
-  timer: string;
+  endDate: Date | string | any; // Date de fin pour le chronomètre
   icon: string;
   title: string;
   rating: string;
@@ -24,7 +25,7 @@ interface DealCardProps {
 export default function DealCard({
   id,
   badge,
-  timer,
+  endDate,
   icon,
   title,
   rating,
@@ -39,6 +40,55 @@ export default function DealCard({
   actionLabel = "Je m'inscris pour acheter →",
 }: DealCardProps) {
   const stockPercentage = (stock.current / stock.total) * 100;
+  const [timeRemaining, setTimeRemaining] = useState<string>('');
+
+  // Fonction pour calculer le temps restant
+  const calculateTimeRemaining = () => {
+    let end: Date;
+    
+    if (endDate && typeof endDate === 'object' && 'toDate' in endDate) {
+      // C'est un Timestamp Firebase
+      end = (endDate as any).toDate();
+    } else {
+      // C'est déjà une Date ou une string
+      end = new Date(endDate);
+    }
+    
+    const now = new Date();
+    const diff = end.getTime() - now.getTime();
+    
+    if (diff <= 0) return 'Expiré';
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    
+    return `${hours}h ${minutes}m ${seconds}s`;
+  };
+
+  // Mettre à jour le chronomètre en temps réel
+  useEffect(() => {
+    if (!endDate) return;
+    
+    const updateTimer = () => {
+      setTimeRemaining(calculateTimeRemaining());
+    };
+    
+    // Mettre à jour immédiatement
+    updateTimer();
+    
+    // Mettre à jour toutes les secondes
+    const interval = setInterval(updateTimer, 1000);
+    
+    return () => clearInterval(interval);
+  }, [endDate]);
+
+  // Calcul initial
+  useEffect(() => {
+    if (endDate) {
+      setTimeRemaining(calculateTimeRemaining());
+    }
+  }, [endDate]);
 
   return (
     <Card>
@@ -71,7 +121,7 @@ export default function DealCard({
           fontWeight: 'bold',
           backdropFilter: 'blur(10px)'
         }}>
-          ⏰ {timer}
+          ⏰ {timeRemaining || 'Chargement...'}
         </div>
         <div style={{
           width: '100%',
@@ -111,7 +161,7 @@ export default function DealCard({
 
         <div style={{ marginBottom: '12px' }}>
           <p style={{ fontSize: '14px', color: 'var(--color-gray-medium)', marginBottom: '4px' }}>
-            📦 Plus que {stock.current}/{stock.total} unités disponibles
+            📦 Reste {stock.current} produits en stock
           </p>
           <div style={{ 
             width: '100%', 

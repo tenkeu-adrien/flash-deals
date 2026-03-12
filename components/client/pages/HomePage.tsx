@@ -104,7 +104,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
               <DealCard
                 id={campaigns[0].id!}
                 badge="NOUVEAU"
-                timer={getTimeRemaining(campaigns[0].endDate)}
+                endDate={campaigns[0].endDate}
                 icon={campaigns[0].images?.[0] ? '🖼️' : '📱'}
                 title={campaigns[0].title}
                 rating={`⭐⭐⭐⭐⭐ ${campaigns[0].averageRating || 4.8}/5 (${campaigns[0].reviewCount || 0} avis)`}
@@ -134,7 +134,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                 key={campaign.id}
                 id={campaign.id!}
                 badge={campaign.sold > campaign.stock * 0.5 ? 'POPULAIRE' : 'NOUVEAU'}
-                timer={getTimeRemaining(campaign.endDate)}
+                endDate={campaign.endDate}
                 icon="📦"
                 title={campaign.title}
                 rating={`⭐⭐⭐⭐⭐ ${campaign.averageRating || 4.8}/5 (${campaign.reviewCount || 0} avis)`}

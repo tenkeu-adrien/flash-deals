@@ -67,25 +67,51 @@ export async function signupWithEmail(
     await sendEmailVerification(user);
 
     // Créer le profil utilisateur dans Firestore
-    const userData: UserData = {
+    const userData: any = {
       uid: user.uid,
       email: email,
       displayName: additionalData?.displayName || email.split('@')[0],
-      photoURL: additionalData?.photoURL || undefined,
       role: 'client',
       status: 'active',
       emailVerified: false,
       createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      ...additionalData
+      updatedAt: serverTimestamp()
     };
 
-    await setDoc(doc(getFirebaseDb(), Collections.USERS, user.uid), userData);
+    // Ajouter photoURL seulement s'il existe
+    if (additionalData?.photoURL) {
+      userData.photoURL = additionalData.photoURL;
+    }
 
-    console.log('✅ Inscription réussie:', user.uid);
+    // Ajouter les autres données additionnelles (sans les champs undefined)
+    if (additionalData) {
+      Object.keys(additionalData).forEach(key => {
+        if (additionalData[key as keyof typeof additionalData] !== undefined && key !== 'photoURL') {
+          userData[key] = additionalData[key as keyof typeof additionalData];
+        }
+      });
+    }
+
+    const db = getFirebaseDb();
+    await setDoc(doc(db, Collections.USERS, user.uid), userData);
+
+    // Vérifier que le document a bien été créé
+    const userDoc = await getDoc(doc(db, Collections.USERS, user.uid));
+    if (!userDoc.exists()) {
+      throw new Error('Échec de la création du profil utilisateur dans Firestore');
+    }
+
+    console.log('✅ Inscription réussie - Auth:', user.uid, 'Firestore:', userDoc.exists());
     return { success: true, user };
   } catch (error: any) {
     console.error('❌ Erreur inscription:', error);
+    
+    // Log détaillé pour déboguer
+    if (error.code) {
+      console.error('Code erreur Firebase:', error.code);
+      console.error('Message erreur:', error.message);
+    }
+    
     return { success: false, error: error.message };
   }
 }
@@ -105,17 +131,21 @@ export async function signupWithGoogle(): Promise<{ success: boolean; user?: Use
 
     if (!userDoc.exists()) {
       // Créer le profil
-      const userData: UserData = {
+      const userData: any = {
         uid: user.uid,
         email: user.email || '',
         displayName: user.displayName || 'Utilisateur',
-        photoURL: user.photoURL || undefined,
         role: 'client',
         status: 'active',
         emailVerified: user.emailVerified,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
+
+      // Ajouter photoURL seulement s'il existe
+      if (user.photoURL) {
+        userData.photoURL = user.photoURL;
+      }
 
       await setDoc(doc(getFirebaseDb(), Collections.USERS, user.uid), userData);
     } else {
@@ -148,17 +178,21 @@ export async function signupWithFacebook(): Promise<{ success: boolean; user?: U
 
     if (!userDoc.exists()) {
       // Créer le profil
-      const userData: UserData = {
+      const userData: any = {
         uid: user.uid,
         email: user.email || '',
         displayName: user.displayName || 'Utilisateur',
-        photoURL: user.photoURL || undefined,
         role: 'client',
         status: 'active',
         emailVerified: user.emailVerified,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
+
+      // Ajouter photoURL seulement s'il existe
+      if (user.photoURL) {
+        userData.photoURL = user.photoURL;
+      }
 
       await setDoc(doc(getFirebaseDb(), Collections.USERS, user.uid), userData);
     } else {
@@ -306,10 +340,19 @@ export async function updateUserProfile(data: Partial<UserData>): Promise<{ succ
     const uid = firebaseAuth.currentUser?.uid;
     if (!uid) throw new Error('Utilisateur non connecté');
 
-    await updateDoc(doc(getFirebaseDb(), Collections.USERS, uid), {
-      ...data,
+    // Filtrer les valeurs undefined
+    const updateData: any = {
       updatedAt: serverTimestamp()
+    };
+
+    Object.keys(data).forEach(key => {
+      const value = data[key as keyof typeof data];
+      if (value !== undefined) {
+        updateData[key] = value;
+      }
     });
+
+    await updateDoc(doc(getFirebaseDb(), Collections.USERS, uid), updateData);
 
     console.log('✅ Profil mis à jour');
     return { success: true };

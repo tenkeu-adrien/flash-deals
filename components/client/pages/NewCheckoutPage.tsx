@@ -2,25 +2,28 @@
 
 import { useState, useEffect } from 'react';
 import Button from '@/components/ui/Button';
-import FormInput from '@/components/ui/FormInput';
-import FormTextarea from '@/components/ui/FormTextarea';
+import Input from '@/components/ui/Input';
 import { RegionSelect } from '@/components/ui/RegionSelect';
 import { CityInput } from '@/components/ui/CityInput';
+import ToastContainer from '@/components/ui/ToastContainer';
+import { useToast } from '@/lib/hooks/useToast';
 import { 
   createOrderWithPayment,
-  getUserAddress,
-  saveUserAddress,
-  getOrCreateConversation,
-  sendChatMessage,
-  getChatMessages,
-  onChatMessagesChange,
-  ChatMessageData
-} from '@/lib/firebase';
+  getPaymentSettings
+} from '@/lib/firebase/firestore-payment';
+import { getUserAddress, saveUserAddress } from '@/lib/firebase/firestore-address';
+import { clearCart } from '@/lib/firebase/firestore';
 import { useClientStore } from '@/lib/stores/clientStore';
 
-export default function NewCheckoutPage() {
-  const { cart, clearCart, setCurrentPage } = useClientStore();
-  const [step, setStep] = useState<'address' | 'payment' | 'confirmation'>('address');
+interface CheckoutPageProps {
+  onNavigate: (page: string) => void;
+}
+
+export default function NewCheckoutPage({ onNavigate }: CheckoutPageProps) {
+  const { cart: localCart, user, clearCart: clearLocalCart } = useClientStore();
+  const { toasts, removeToast, success, error, warning } = useToast();
+  
+  const [step, setStep] = useState<'recap' | 'address' | 'payment' | 'confirmation'>('recap');
   const [loading, setLoading] = useState(false);
   const [loadingAddress, setLoadingAddress] = useState(true);
   
@@ -29,7 +32,6 @@ export default function NewCheckoutPage() {
     street: '',
     city: '',
     region: '',
-    postalCode: '',
     phone: ''
   });
   
@@ -38,28 +40,15 @@ export default function NewCheckoutPage() {
   const [merchantCode, setMerchantCode] = useState('');
   const [deliveryNotes, setDeliveryNotes] = useState('');
   
-  // Chat
-  const [showChat, setShowChat] = useState(false);
-  const [conversationId, setConversationId] = useState<string | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessageData[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [unsubscribeChat, setUnsubscribeChat] = useState<(() => void) | null>(null);
-  
   // Résultat
   const [orderId, setOrderId] = useState('');
 
-  const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const firstItem = cart[0];
+  const DELIVERY_FEE = 1500;
+  const subtotal = localCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const total = subtotal + DELIVERY_FEE;
 
   useEffect(() => {
     loadUserAddress();
-    
-    // Nettoyer l'écouteur au démontage
-    return () => {
-      if (unsubscribeChat) {
-        unsubscribeChat();
-      }
-    };
   }, []);
 
   const loadUserAddress = async () => {
@@ -71,7 +60,6 @@ export default function NewCheckoutPage() {
         street: result.address.street,
         city: result.address.city,
         region: result.address.region,
-        postalCode: result.address.postalCode || '',
         phone: result.address.phone
       });
     }
@@ -79,472 +67,591 @@ export default function NewCheckoutPage() {
     setLoadingAddress(false);
   };
 
-  const handleOpenChat = async () => {
-    if (!firstItem) return;
-
-    const result = await getOrCreateConversation(
-      firstItem.campaignId,
-      firstItem.campaign?.title || 'Produit',
-      firstItem.campaign?.images?.[0]
-    );
-
-    if (result.success && result.conversationId) {
-      setConversationId(result.conversationId);
-      setShowChat(true);
-
-      // Charger les messages
-      const messagesResult = await getChatMessages(result.conversationId);
-      if (messagesResult.success && messagesResult.messages) {
-        setChatMessages(messagesResult.messages);
-      }
-
-      // Écouter les nouveaux messages
-      const unsub = onChatMessagesChange(result.conversationId, (messages) => {
-        setChatMessages(messages);
-      });
-      setUnsubscribeChat(() => unsub);
+  const handleContinueToAddress = () => {
+    if (localCart.length === 0) {
+      error('Votre panier est vide');
+      onNavigate('cart');
+      return;
     }
-  };
-
-  const handleSendMessage = async () => {
-    if (!conversationId || !newMessage.trim()) return;
-
-    const result = await sendChatMessage(
-      conversationId,
-      newMessage.trim(),
-      'client',
-      'Client' // À adapter avec le vrai nom
-    );
-
-    if (result.success) {
-      setNewMessage('');
-    }
+    setStep('address');
   };
 
   const handleAddressSubmit = async () => {
     if (!address.street || !address.city || !address.region || !address.phone) {
-      alert('Veuillez remplir tous les champs obligatoires');
+      warning('Veuillez remplir tous les champs obligatoires');
       return;
     }
 
     // Enregistrer l'adresse
-    await saveUserAddress(address);
+    const result = await saveUserAddress(address);
+    if (result.success) {
+      success('Adresse sauvegardée');
+    }
     
     setStep('payment');
   };
 
   const handlePaymentSubmit = async () => {
-    if (cart.length === 0) {
-      alert('Votre panier est vide');
+    if (localCart.length === 0) {
+      error('Votre panier est vide');
       return;
     }
 
     setLoading(true);
 
     try {
-      const result = await createOrderWithPayment({
-        campaignId: firstItem.campaignId,
-        vendorId: firstItem.campaign?.vendorId || '',
-        quantity: firstItem.quantity,
-        totalPrice: totalAmount,
-        paymentMethod,
-        deliveryAddress: {
-          street: address.street,
-          city: address.city,
-          region: address.region,
-          postalCode: address.postalCode,
-          phone: address.phone
-        },
-        deliveryNotes
+      // Récupérer le code marchand si nécessaire
+      let finalMerchantCode = '';
+      if (paymentMethod !== 'cash_on_delivery') {
+        const settingsResult = await getPaymentSettings();
+        if (settingsResult.success && settingsResult.settings) {
+          finalMerchantCode = paymentMethod === 'orange_money' 
+            ? settingsResult.settings.orangeMoneyCode
+            : settingsResult.settings.mobileMoneyCode;
+        }
+      }
+
+      // Créer une commande pour chaque article
+      const orderPromises = localCart.map((item) => {
+        if (!item.campaign) {
+          return Promise.resolve({ 
+            success: false, 
+            error: `Données manquantes pour le produit ${item.campaignId}` 
+          });
+        }
+
+        return createOrderWithPayment({
+          campaignId: item.campaignId,
+          vendorId: item.campaign.vendorId,
+          quantity: item.quantity,
+          totalPrice: item.price * item.quantity + DELIVERY_FEE,
+          paymentMethod,
+          deliveryAddress: {
+            street: address.street,
+            city: address.city,
+            region: address.region,
+            phone: address.phone
+          },
+          deliveryNotes
+        });
       });
 
-      if (result.success && result.orderId) {
-        setOrderId(result.orderId);
-        if (result.merchantCode) {
-          setMerchantCode(result.merchantCode);
+      const results = await Promise.all(orderPromises);
+      const failed = results.filter((r) => !r.success);
+
+      if (failed.length === 0) {
+        // Récupérer le code marchand de la première commande réussie
+        const firstSuccess = results.find(r => r.success);
+        if (firstSuccess && firstSuccess.merchantCode) {
+          setMerchantCode(firstSuccess.merchantCode);
         }
+
+        // Vider le panier local ET Firebase
+        clearLocalCart();
+        await clearCart();
+        
+        setOrderId('CMD-' + Date.now());
         setStep('confirmation');
-        clearCart();
+        success('Commande créée avec succès !');
       } else {
-        alert(`Erreur: ${result.error}`);
+        const errorMessages = failed.map((r) => r.error || 'Erreur inconnue').join(', ');
+        error(`Erreur: ${errorMessages}`);
       }
-    } catch (error: any) {
-      alert(`Erreur: ${error.message}`);
+    } catch (err: any) {
+      error(`Erreur: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
+  // Étape 1 : Récapitulatif
+  if (step === 'recap') {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a' }}>
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+        
+        <header className="header">
+          <button 
+            onClick={() => onNavigate('cart')}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'white',
+              fontSize: '16px',
+              cursor: 'pointer'
+            }}
+          >
+            ← Retour
+          </button>
+          <div className="header-logo">📋 Récapitulatif</div>
+          <div></div>
+        </header>
+
+        <div style={{ padding: 'var(--spacing-lg)', maxWidth: '600px', margin: '0 auto' }}>
+          {/* Articles */}
+          <div style={{
+            backgroundColor: '#1a1a1a',
+            borderRadius: '12px',
+            padding: 'var(--spacing-lg)',
+            border: '1px solid #333',
+            marginBottom: 'var(--spacing-md)'
+          }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: 'var(--spacing-md)' }}>
+              📦 Vos articles ({localCart.length})
+            </h2>
+
+            {localCart.map((item) => (
+              <div
+                key={item.id}
+                style={{
+                  display: 'flex',
+                  gap: 'var(--spacing-md)',
+                  padding: 'var(--spacing-md)',
+                  backgroundColor: '#222',
+                  borderRadius: '8px',
+                  marginBottom: 'var(--spacing-sm)'
+                }}
+              >
+                {item.campaign?.images?.[0] && (
+                  <img
+                    src={item.campaign.images[0]}
+                    alt={item.campaign.title}
+                    style={{
+                      width: '60px',
+                      height: '60px',
+                      borderRadius: '8px',
+                      objectFit: 'cover'
+                    }}
+                  />
+                )}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '15px', fontWeight: '500', marginBottom: '4px' }}>
+                    {item.campaign?.title || 'Produit'}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#666' }}>
+                    Quantité: {item.quantity}
+                  </div>
+                </div>
+                <div style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--color-orange)' }}>
+                  {(item.price * item.quantity).toLocaleString()} XAF
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Résumé des coûts */}
+          <div style={{
+            backgroundColor: '#1a1a1a',
+            borderRadius: '12px',
+            padding: 'var(--spacing-lg)',
+            border: '1px solid #333',
+            marginBottom: 'var(--spacing-lg)'
+          }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: 'var(--spacing-md)' }}>
+              💰 Résumé
+            </h2>
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: 'var(--spacing-sm)',
+              fontSize: '15px',
+              color: '#999'
+            }}>
+              <span>Sous-total</span>
+              <span>{subtotal.toLocaleString()} XAF</span>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: 'var(--spacing-md)',
+              fontSize: '15px',
+              color: '#999'
+            }}>
+              <span>Frais de livraison</span>
+              <span>{DELIVERY_FEE.toLocaleString()} XAF</span>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontSize: '20px',
+              fontWeight: 'bold',
+              color: 'var(--color-orange)',
+              paddingTop: 'var(--spacing-sm)',
+              borderTop: '1px solid #333'
+            }}>
+              <span>Total</span>
+              <span>{total.toLocaleString()} XAF</span>
+            </div>
+          </div>
+
+          <Button
+            onClick={handleContinueToAddress}
+            variant="primary"
+            size="block"
+          >
+            Continuer vers la livraison →
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Étape 2 : Adresse
   if (step === 'address') {
     return (
-      <div className="min-h-screen bg-gray-50 p-4">
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h1 className="text-2xl font-bold text-gray-900">
-                Adresse de livraison
-              </h1>
-              
-              <Button
-                onClick={handleOpenChat}
-                variant="secondary"
-                className="flex items-center gap-2"
-              >
-                💬 Chater avec nous
-              </Button>
-            </div>
+      <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a' }}>
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+        
+        <header className="header">
+          <button 
+            onClick={() => setStep('recap')}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'white',
+              fontSize: '16px',
+              cursor: 'pointer'
+            }}
+          >
+            ← Retour
+          </button>
+          <div className="header-logo">📍 Livraison</div>
+          <div></div>
+        </header>
+
+        <div style={{ padding: 'var(--spacing-lg)', maxWidth: '600px', margin: '0 auto' }}>
+          <div style={{
+            backgroundColor: '#1a1a1a',
+            borderRadius: '12px',
+            padding: 'var(--spacing-lg)',
+            border: '1px solid #333',
+            marginBottom: 'var(--spacing-lg)'
+          }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: 'var(--spacing-md)' }}>
+              Adresse de livraison
+            </h2>
 
             {loadingAddress ? (
-              <div className="animate-pulse space-y-4">
-                <div className="h-12 bg-gray-200 rounded"></div>
-                <div className="h-12 bg-gray-200 rounded"></div>
-                <div className="h-12 bg-gray-200 rounded"></div>
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+                <p style={{ color: '#666' }}>Chargement...</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                <FormInput
-                  label="Rue / Quartier"
-                  type="text"
-                  value={address.street}
-                  onChange={(value) => setAddress({ ...address, street: value })}
-                  placeholder="Ex: Quartier Bastos"
-                  required
-                />
+              <>
+                <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: 'var(--spacing-xs)',
+                    fontSize: '14px',
+                    fontWeight: 600
+                  }}>
+                    Rue et numéro *
+                  </label>
+                  <Input
+                    value={address.street}
+                    onChange={(e) => setAddress({...address, street: e.target.value})}
+                    placeholder="Ex: Rue 1234, Quartier Bonamoussadi"
+                  />
+                </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div style={{ marginBottom: 'var(--spacing-md)' }}>
                   <CityInput
-                    label="Ville"
+                    label="Ville *"
                     value={address.city}
-                    onChange={(value) => setAddress({ ...address, city: value })}
-                    required
+                    onChange={(value) => setAddress({...address, city: value})}
                   />
+                </div>
 
+                <div style={{ marginBottom: 'var(--spacing-md)' }}>
                   <RegionSelect
-                    label="Région"
+                    label="Région *"
                     value={address.region}
-                    onChange={(value) => setAddress({ ...address, region: value })}
-                    required
+                    onChange={(value) => setAddress({...address, region: value})}
                   />
                 </div>
 
-                <FormInput
-                  label="Code postal (optionnel)"
-                  type="text"
-                  value={address.postalCode}
-                  onChange={(value) => setAddress({ ...address, postalCode: value })}
-                  placeholder="Ex: 1234"
-                />
-
-                <FormInput
-                  label="Téléphone"
-                  type="tel"
-                  value={address.phone}
-                  onChange={(value) => setAddress({ ...address, phone: value })}
-                  placeholder="Ex: +237 6XX XXX XXX"
-                  required
-                />
-
-                <FormTextarea
-                  label="Notes de livraison (optionnel)"
-                  value={deliveryNotes}
-                  onChange={(value) => setDeliveryNotes(value)}
-                  placeholder="Instructions spéciales pour la livraison..."
-                  rows={3}
-                />
-
-                <div className="flex gap-3 pt-4 mt-6 border-t">
-                  <Button
-                    onClick={handleAddressSubmit}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700"
-                  >
-                    Continuer vers le paiement
-                  </Button>
-                  
-                  <Button
-                    onClick={() => setCurrentPage('cart')}
-                    variant="secondary"
-                  >
-                    Retour au panier
-                  </Button>
+                <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: 'var(--spacing-xs)',
+                    fontSize: '14px',
+                    fontWeight: 600
+                  }}>
+                    Téléphone *
+                  </label>
+                  <Input
+                    value={address.phone}
+                    onChange={(e) => setAddress({...address, phone: e.target.value})}
+                    placeholder="Ex: +237 6XX XXX XXX"
+                  />
                 </div>
-              </div>
+
+                <div style={{ marginBottom: 'var(--spacing-lg)' }}>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: 'var(--spacing-xs)',
+                    fontSize: '14px',
+                    fontWeight: 600
+                  }}>
+                    Notes de livraison (optionnel)
+                  </label>
+                  <textarea
+                    value={deliveryNotes}
+                    onChange={(e) => setDeliveryNotes(e.target.value)}
+                    placeholder="Ex: Sonner 2 fois, laisser chez le voisin..."
+                    rows={3}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      border: '2px solid #333',
+                      backgroundColor: '#222',
+                      color: 'white',
+                      fontSize: '15px',
+                      resize: 'vertical'
+                    }}
+                  />
+                </div>
+
+                <Button
+                  onClick={handleAddressSubmit}
+                  variant="primary"
+                  size="block"
+                >
+                  Continuer vers le paiement →
+                </Button>
+              </>
             )}
           </div>
         </div>
-
-        {/* Modal de chat */}
-        {showChat && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] flex flex-col">
-              <div className="p-4 border-b flex justify-between items-center">
-                <div>
-                  <h2 className="text-lg font-semibold">Chat avec le support</h2>
-                  <p className="text-sm text-gray-600">
-                    {firstItem?.campaign?.title || 'Produit'}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowChat(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {chatMessages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.senderRole === 'client' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[70%] rounded-lg p-3 ${
-                        msg.senderRole === 'client'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 text-gray-900'
-                      }`}
-                    >
-                      <p className="text-sm">{msg.message}</p>
-                      <p className="text-xs opacity-70 mt-1">
-                        {msg.senderName}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-
-                {chatMessages.length === 0 && (
-                  <p className="text-center text-gray-500">
-                    Commencez la conversation
-                  </p>
-                )}
-              </div>
-
-              <div className="p-4 border-t">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                    placeholder="Tapez votre message..."
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <Button
-                    onClick={handleSendMessage}
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    Envoyer
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     );
   }
 
+  // Étape 3 : Paiement
   if (step === 'payment') {
     return (
-      <div className="min-h-screen bg-gray-50 p-4">
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-6">
-              Méthode de paiement
-            </h1>
+      <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a' }}>
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+        
+        <header className="header">
+          <button 
+            onClick={() => setStep('address')}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'white',
+              fontSize: '16px',
+              cursor: 'pointer'
+            }}
+          >
+            ← Retour
+          </button>
+          <div className="header-logo">💳 Paiement</div>
+          <div></div>
+        </header>
 
-            <div className="mb-6">
-              <p className="text-gray-600 mb-4">
-                Choisissez votre moyen de paiement :
-              </p>
+        <div style={{ padding: 'var(--spacing-lg)', maxWidth: '600px', margin: '0 auto' }}>
+          {/* Résumé */}
+          <div style={{
+            backgroundColor: '#1a1a1a',
+            borderRadius: '12px',
+            padding: 'var(--spacing-lg)',
+            border: '1px solid #333',
+            marginBottom: 'var(--spacing-lg)'
+          }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: 'var(--spacing-md)' }}>
+              Montant à payer
+            </h2>
 
-              <div className="space-y-3">
-                <label className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
-                  paymentMethod === 'cash_on_delivery' ? 'border-green-600 bg-green-50' : 'border-gray-200'
-                }`}>
-                  <input
-                    type="radio"
-                    name="payment"
-                    value="cash_on_delivery"
-                    checked={paymentMethod === 'cash_on_delivery'}
-                    onChange={(e) => setPaymentMethod(e.target.value as any)}
-                    className="w-5 h-5 text-green-600"
-                  />
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-900">Paiement à la livraison</p>
-                    <p className="text-sm text-gray-600">
-                      Payez en espèces lors de la réception
-                    </p>
-                  </div>
-                  <div className="text-2xl">💵</div>
-                </label>
-
-                <label className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
-                  paymentMethod === 'orange_money' ? 'border-orange-600 bg-orange-50' : 'border-gray-200'
-                }`}>
-                  <input
-                    type="radio"
-                    name="payment"
-                    value="orange_money"
-                    checked={paymentMethod === 'orange_money'}
-                    onChange={(e) => setPaymentMethod(e.target.value as any)}
-                    className="w-5 h-5 text-orange-600"
-                  />
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-900">Orange Money</p>
-                    <p className="text-sm text-gray-600">
-                      Paiement via Orange Money
-                    </p>
-                  </div>
-                  <div className="text-2xl">🟠</div>
-                </label>
-
-                <label className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
-                  paymentMethod === 'mobile_money' ? 'border-blue-600 bg-blue-50' : 'border-gray-200'
-                }`}>
-                  <input
-                    type="radio"
-                    name="payment"
-                    value="mobile_money"
-                    checked={paymentMethod === 'mobile_money'}
-                    onChange={(e) => setPaymentMethod(e.target.value as any)}
-                    className="w-5 h-5 text-blue-600"
-                  />
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-900">Mobile Money</p>
-                    <p className="text-sm text-gray-600">
-                      Paiement via Mobile Money (MTN, etc.)
-                    </p>
-                  </div>
-                  <div className="text-2xl">📱</div>
-                </label>
-              </div>
+            <div style={{
+              fontSize: '32px',
+              fontWeight: 'bold',
+              color: 'var(--color-orange)',
+              textAlign: 'center',
+              padding: 'var(--spacing-md) 0'
+            }}>
+              {total.toLocaleString()} XAF
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <h3 className="font-semibold text-blue-900 mb-2">
-                Montant à payer
-              </h3>
-              <p className="text-3xl font-bold text-blue-900">
-                {totalAmount.toLocaleString()} FCFA
-              </p>
-            </div>
-
-            {paymentMethod !== 'cash_on_delivery' && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                <p className="text-sm text-yellow-800">
-                  ℹ️ Après validation, vous recevrez le code marchand pour effectuer votre paiement.
-                </p>
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              <Button
-                onClick={handlePaymentSubmit}
-                disabled={loading}
-                className="flex-1 bg-green-600 hover:bg-green-700"
-              >
-                {loading ? 'Traitement...' : 'Confirmer la commande'}
-              </Button>
-              
-              <Button
-                onClick={() => setStep('address')}
-                variant="secondary"
-                disabled={loading}
-              >
-                Retour
-              </Button>
+            <div style={{ fontSize: '13px', color: '#666', textAlign: 'center' }}>
+              Sous-total: {subtotal.toLocaleString()} XAF + Livraison: {DELIVERY_FEE.toLocaleString()} XAF
             </div>
           </div>
+
+          {/* Méthodes de paiement */}
+          <div style={{
+            backgroundColor: '#1a1a1a',
+            borderRadius: '12px',
+            padding: 'var(--spacing-lg)',
+            border: '1px solid #333',
+            marginBottom: 'var(--spacing-lg)'
+          }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: 'var(--spacing-md)' }}>
+              Choisissez votre mode de paiement
+            </h2>
+
+            <div style={{ display: 'grid', gap: 'var(--spacing-sm)' }}>
+              {[
+                { id: 'orange_money', label: 'Orange Money', icon: '🟠', desc: 'Paiement mobile sécurisé' },
+                { id: 'mobile_money', label: 'MTN Mobile Money', icon: '📱', desc: 'Paiement mobile sécurisé' },
+                { id: 'cash_on_delivery', label: 'Paiement à la livraison', icon: '💰', desc: 'Payez en espèces à la réception' }
+              ].map((method) => (
+                <button
+                  key={method.id}
+                  onClick={() => setPaymentMethod(method.id as any)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--spacing-md)',
+                    padding: 'var(--spacing-md)',
+                    borderRadius: '8px',
+                    border: `2px solid ${paymentMethod === method.id ? 'var(--color-orange)' : '#333'}`,
+                    backgroundColor: paymentMethod === method.id ? 'rgba(255, 102, 0, 0.1)' : '#222',
+                    color: 'white',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    width: '100%',
+                    textAlign: 'left'
+                  }}
+                >
+                  <span style={{ fontSize: '32px' }}>{method.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>
+                      {method.label}
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#666' }}>
+                      {method.desc}
+                    </div>
+                  </div>
+                  {paymentMethod === method.id && (
+                    <span style={{ fontSize: '20px', color: 'var(--color-orange)' }}>✓</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <Button
+            onClick={handlePaymentSubmit}
+            variant="primary"
+            size="block"
+            disabled={loading}
+          >
+            {loading ? '⏳ Traitement en cours...' : `Confirmer la commande - ${total.toLocaleString()} XAF`}
+          </Button>
         </div>
       </div>
     );
   }
 
-  if (step === 'confirmation') {
-    return (
-      <div className="min-h-screen bg-gray-50 p-4">
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-lg shadow-sm p-6 text-center">
-            <div className="text-6xl mb-4">✅</div>
-            
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">
-              Commande créée avec succès !
-            </h1>
-
-            <p className="text-gray-600 mb-6">
-              Votre commande #{orderId.slice(-8)} a été enregistrée.
-            </p>
-
-            {paymentMethod === 'cash_on_delivery' ? (
-              <div className="bg-green-50 border-2 border-green-400 rounded-lg p-6 mb-6">
-                <h2 className="text-xl font-bold text-green-900 mb-4">
-                  💵 Paiement à la livraison
-                </h2>
-                
-                <p className="text-green-800">
-                  Votre commande est en attente de livraison. Vous paierez en espèces lors de la réception.
-                </p>
-              </div>
-            ) : (
-              <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-6 mb-6">
-                <h2 className="text-xl font-bold text-yellow-900 mb-4">
-                  📱 Effectuez votre paiement
-                </h2>
-                
-                <div className="space-y-3 text-left">
-                  <div>
-                    <p className="text-sm text-yellow-800 font-medium">Méthode :</p>
-                    <p className="text-lg font-bold text-yellow-900">
-                      {paymentMethod === 'orange_money' ? 'Orange Money' : 'Mobile Money'}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-sm text-yellow-800 font-medium">Code marchand :</p>
-                    <p className="text-2xl font-bold text-yellow-900 font-mono">
-                      {merchantCode}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-sm text-yellow-800 font-medium">Montant :</p>
-                    <p className="text-2xl font-bold text-yellow-900">
-                      {totalAmount.toLocaleString()} FCFA
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 p-3 bg-yellow-100 rounded">
-                  <p className="text-sm text-yellow-900">
-                    ⚠️ Utilisez ce code marchand pour effectuer votre paiement.
-                    Votre commande sera validée une fois le paiement reçu.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <Button
-                onClick={() => setCurrentPage('dashboard')}
-                className="w-full bg-blue-600 hover:bg-blue-700"
-              >
-                Voir mes commandes
-              </Button>
-              
-              <Button
-                onClick={() => setCurrentPage('home')}
-                variant="secondary"
-                className="w-full"
-              >
-                Retour à l'accueil
-              </Button>
-            </div>
-          </div>
+  // Étape 4 : Confirmation
+  return (
+    <div style={{
+      minHeight: '100vh',
+      backgroundColor: '#0a0a0a',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 'var(--spacing-lg)'
+    }}>
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+      
+      <div style={{ maxWidth: '500px', width: '100%', textAlign: 'center' }}>
+        <div style={{
+          fontSize: '80px',
+          marginBottom: 'var(--spacing-lg)',
+          animation: 'bounce 0.6s ease-in-out'
+        }}>
+          ✅
         </div>
-      </div>
-    );
-  }
 
-  return null;
+        <h1 style={{
+          fontSize: '28px',
+          fontWeight: 'bold',
+          marginBottom: 'var(--spacing-md)'
+        }}>
+          Commande confirmée !
+        </h1>
+
+        <p style={{
+          fontSize: '16px',
+          color: '#999',
+          marginBottom: 'var(--spacing-lg)',
+          lineHeight: 1.6
+        }}>
+          Votre commande <strong style={{ color: 'var(--color-orange)' }}>{orderId}</strong> a été enregistrée avec succès.
+        </p>
+
+        {/* Détails */}
+        <div style={{
+          backgroundColor: '#1a1a1a',
+          borderRadius: '12px',
+          padding: 'var(--spacing-lg)',
+          border: '1px solid #333',
+          marginBottom: 'var(--spacing-lg)',
+          textAlign: 'left'
+        }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: 'var(--spacing-md)' }}>
+            📋 Détails de la commande
+          </h3>
+          
+          <div style={{ fontSize: '14px', color: '#999', marginBottom: '8px' }}>
+            <strong>Livraison:</strong> {address.street}, {address.city}
+          </div>
+          <div style={{ fontSize: '14px', color: '#999', marginBottom: '8px' }}>
+            <strong>Téléphone:</strong> {address.phone}
+          </div>
+          <div style={{ fontSize: '14px', color: '#999', marginBottom: '8px' }}>
+            <strong>Paiement:</strong> {
+              paymentMethod === 'orange_money' ? 'Orange Money' : 
+              paymentMethod === 'mobile_money' ? 'MTN Mobile Money' : 
+              'Paiement à la livraison'
+            }
+          </div>
+          <div style={{ fontSize: '14px', color: '#999' }}>
+            <strong>Montant:</strong> {total.toLocaleString()} XAF
+          </div>
+
+          {merchantCode && paymentMethod !== 'cash_on_delivery' && (
+            <div style={{
+              marginTop: 'var(--spacing-md)',
+              padding: 'var(--spacing-md)',
+              backgroundColor: '#222',
+              borderRadius: '8px',
+              border: '1px solid var(--color-orange)'
+            }}>
+              <div style={{ fontSize: '13px', color: '#999', marginBottom: '4px' }}>
+                Code marchand pour le paiement:
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'var(--color-orange)' }}>
+                {merchantCode}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+          <Button
+            onClick={() => onNavigate('dashboard')}
+            variant="primary"
+            size="block"
+          >
+            Retour aux deals
+          </Button>
+        </div>
+
+        <style jsx>{`
+          @keyframes bounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+          }
+        `}</style>
+      </div>
+    </div>
+  );
 }

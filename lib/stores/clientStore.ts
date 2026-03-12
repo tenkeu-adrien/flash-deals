@@ -93,9 +93,10 @@ export const useClientStore = create<ClientState>()(
       partialize: (state) => ({
         preferences: state.preferences,
         currentPage: state.currentPage,
-        selectedCampaignId: state.selectedCampaignId, // ✅ AJOUTÉ
+        selectedCampaignId: state.selectedCampaignId,
         isAuthenticated: state.isAuthenticated,
-        user: state.user
+        user: state.user,
+        cart: state.cart // ✅ AJOUTÉ - Sauvegarde le panier
       })
     }
   )

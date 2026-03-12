@@ -19,7 +19,7 @@ export function CityInput({
 }: CityInputProps) {
   return (
     <div className="w-full">
-      <label className="block text-sm font-medium text-gray-700 mb-1">
+      <label className="block mb-2 text-[14px] font-semibold text-white">
         {label}
         {required && <span className="text-red-500 ml-1">*</span>}
       </label>
@@ -31,10 +31,10 @@ export function CityInput({
         onChange={(e) => onChange(e.target.value)}
         required={required}
         placeholder="Ex: Yaoundé"
-        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
+        className={`w-full px-3.5 py-3.5 rounded-[12px] border-2 border-[#333] bg-[#1a1a1a] text-white text-[16px] transition-all duration-300 focus:outline-none focus:border-[#FF6600] focus:shadow-[0_0_0_3px_rgba(255,102,0,0.1)] ${
           error 
-            ? 'border-red-500 focus:ring-red-500' 
-            : 'border-gray-300'
+            ? 'border-red-500 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(239,68,68,0.1)]' 
+            : ''
         }`}
       />
       
@@ -45,7 +45,7 @@ export function CityInput({
       </datalist>
       
       {error && (
-        <p className="mt-1 text-sm text-red-600">{error}</p>
+        <p className="mt-1.5 text-[12px] text-red-500">{error}</p>
       )}
       
       <p className="mt-1 text-xs text-gray-500">

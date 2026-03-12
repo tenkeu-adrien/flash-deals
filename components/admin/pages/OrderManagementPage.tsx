@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import AdminSidebar from '@/components/admin/Sidebar';
 import Button from '@/components/ui/Button';
+import ToastContainer from '@/components/ui/ToastContainer';
+import { useToast } from '@/lib/hooks/useToast';
 import { 
   getOrdersByStatus,
   validateOrderPayment,
@@ -25,6 +27,8 @@ export default function OrderManagementPage({ onNavigate }: OrderManagementPageP
   const [selectedOrder, setSelectedOrder] = useState<OrderWithPayment | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [showDetails, setShowDetails] = useState<string | null>(null);
+  const { toasts, removeToast, success, error, warning } = useToast();
 
   useEffect(() => {
     loadOrders();
@@ -56,9 +60,9 @@ export default function OrderManagementPage({ onNavigate }: OrderManagementPageP
 
     if (result.success) {
       await loadOrders();
-      alert('✅ Paiement validé ! La commande est maintenant en attente de livraison.');
+      success('Paiement validé ! La commande est maintenant en attente de livraison.');
     } else {
-      alert(`❌ Erreur: ${result.error}`);
+      error(`Erreur: ${result.error}`);
     }
   };
 
@@ -67,7 +71,9 @@ export default function OrderManagementPage({ onNavigate }: OrderManagementPageP
 
     if (result.success) {
       await loadOrders();
-      alert('✅ Commande marquée en livraison');
+      success('Commande marquée en livraison');
+    } else {
+      error(`Erreur: ${result.error}`);
     }
   };
 
@@ -78,7 +84,9 @@ export default function OrderManagementPage({ onNavigate }: OrderManagementPageP
 
     if (result.success) {
       await loadOrders();
-      alert('✅ Commande livrée !');
+      success('Commande livrée !');
+    } else {
+      error(`Erreur: ${result.error}`);
     }
   };
 
@@ -123,6 +131,7 @@ export default function OrderManagementPage({ onNavigate }: OrderManagementPageP
 
   return (
     <div className="flex">
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
       <AdminSidebar currentPage="order-management" onNavigate={onNavigate} />
       
       <div className="flex-1 ml-[260px]">
@@ -185,36 +194,75 @@ export default function OrderManagementPage({ onNavigate }: OrderManagementPageP
                     </div>
 
                     <div className="flex flex-col gap-2">
+                      {/* Actions selon le statut */}
                       {order.status === 'pending_validation' && (
-                        <Button
-                          onClick={() => handleValidatePayment(order.id!)}
-                          className="bg-green hover:bg-green/80"
-                        >
-                          Valider le paiement
-                        </Button>
+                        <>
+                          <Button
+                            onClick={() => handleValidatePayment(order.id!)}
+                            className="bg-green hover:bg-green/80 text-sm"
+                          >
+                            ✅ Valider le paiement
+                          </Button>
+                          <Button
+                            onClick={() => setShowDetails(order.id!)}
+                            variant="secondary"
+                            className="text-sm"
+                          >
+                            👁️ Voir détails
+                          </Button>
+                        </>
                       )}
 
                       {order.status === 'payment_confirmed' && (
-                        <Button
-                          onClick={() => handleMarkInDelivery(order.id!)}
-                          className="bg-purple-600 hover:bg-purple-700"
-                        >
-                          Marquer en livraison
-                        </Button>
+                        <>
+                          <Button
+                            onClick={() => handleMarkInDelivery(order.id!)}
+                            className="bg-purple-600 hover:bg-purple-700 text-sm"
+                          >
+                            🚚 Marquer en livraison
+                          </Button>
+                          <Button
+                            onClick={() => setShowDetails(order.id!)}
+                            variant="secondary"
+                            className="text-sm"
+                          >
+                            👁️ Voir détails
+                          </Button>
+                        </>
                       )}
 
                       {order.status === 'in_delivery' && (
+                        <>
+                          <Button
+                            onClick={() => handleMarkDelivered(order.id!)}
+                            className="bg-blue-600 hover:bg-blue-700 text-sm"
+                          >
+                            ✅ Marquer comme livrée
+                          </Button>
+                          <Button
+                            onClick={() => setShowDetails(order.id!)}
+                            variant="secondary"
+                            className="text-sm"
+                          >
+                            👁️ Voir détails
+                          </Button>
+                        </>
+                      )}
+
+                      {order.status === 'delivered' && (
                         <Button
-                          onClick={() => handleMarkDelivered(order.id!)}
-                          className="bg-blue-600 hover:bg-blue-700"
+                          onClick={() => setShowDetails(order.id!)}
+                          variant="secondary"
+                          className="text-sm"
                         >
-                          Marquer comme livrée
+                          👁️ Voir détails
                         </Button>
                       )}
 
                       <Button
                         onClick={() => handleOpenChat(order)}
                         variant="secondary"
+                        className="text-sm"
                       >
                         💬 Chat avec client
                       </Button>
