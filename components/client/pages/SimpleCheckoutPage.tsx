@@ -251,7 +251,7 @@ export default function SimpleCheckoutPage() {
             <Button
               onClick={() => setStep('address')}
               variant="secondary"
-              style={{ backgroundColor: '#333', color: 'white' }}
+              className="bg-[#333] text-white"
             >
               ← Retour à l'adresse
             </Button>
@@ -457,7 +457,7 @@ export default function SimpleCheckoutPage() {
             onClick={() => setCurrentPage('orders')}
             variant="secondary"
             size="block"
-            style={{ backgroundColor: '#333', color: 'white' }}
+            className="bg-gray-800 text-white"
           >
             Voir mes commandes
           </Button>

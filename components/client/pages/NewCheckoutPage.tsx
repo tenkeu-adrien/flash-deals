@@ -142,7 +142,7 @@ export default function NewCheckoutPage({ onNavigate }: CheckoutPageProps) {
       if (failed.length === 0) {
         // Récupérer le code marchand de la première commande réussie
         const firstSuccess = results.find(r => r.success);
-        if (firstSuccess && firstSuccess.merchantCode) {
+        if (firstSuccess && 'merchantCode' in firstSuccess && firstSuccess.merchantCode) {
           setMerchantCode(firstSuccess.merchantCode);
         }
 

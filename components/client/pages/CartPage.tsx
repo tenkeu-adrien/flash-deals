@@ -370,7 +370,7 @@ export default function CartPage({ onNavigate }: CartPageProps) {
                             phone: savedAddress.phone || ''
                           });
                         }}
-                        variant="outline"
+                        variant="secondary"
                       >
                         Annuler
                       </Button>
