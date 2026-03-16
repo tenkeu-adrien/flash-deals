@@ -17,6 +17,8 @@ export default function CampaignsPage({ onNavigate }: CampaignsPageProps) {
   const [selectedCampaign, setSelectedCampaign] = useState<any>(null);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editFields, setEditFields] = useState({ stock: 0, currentPrice: 0, description: '' });
 
   useEffect(() => {
     loadCampaigns();
@@ -171,6 +173,7 @@ export default function CampaignsPage({ onNavigate }: CampaignsPageProps) {
                       size="small"
                       onClick={() => {
                         setSelectedCampaign(campaign);
+                        setEditFields({ stock: campaign.stock || 0, currentPrice: campaign.currentPrice || 0, description: campaign.description || '' });
                         setShowEditModal(true);
                       }}
                     >
@@ -274,7 +277,8 @@ export default function CampaignsPage({ onNavigate }: CampaignsPageProps) {
                 <label className="block mb-2 text-sm font-semibold">Stock disponible</label>
                 <input
                   type="number"
-                  defaultValue={selectedCampaign.stock}
+                  value={editFields.stock}
+                  onChange={(e) => setEditFields(prev => ({ ...prev, stock: Number(e.target.value) }))}
                   className="w-full px-4 py-3 bg-bg-dark border border-[#333] rounded-lg text-white focus:border-orange focus:outline-none"
                 />
               </div>
@@ -283,7 +287,8 @@ export default function CampaignsPage({ onNavigate }: CampaignsPageProps) {
                 <label className="block mb-2 text-sm font-semibold">Prix</label>
                 <input
                   type="number"
-                  defaultValue={selectedCampaign.currentPrice}
+                  value={editFields.currentPrice}
+                  onChange={(e) => setEditFields(prev => ({ ...prev, currentPrice: Number(e.target.value) }))}
                   className="w-full px-4 py-3 bg-bg-dark border border-[#333] rounded-lg text-white focus:border-orange focus:outline-none"
                 />
               </div>
@@ -291,7 +296,8 @@ export default function CampaignsPage({ onNavigate }: CampaignsPageProps) {
               <div>
                 <label className="block mb-2 text-sm font-semibold">Description</label>
                 <textarea
-                  defaultValue={selectedCampaign.description}
+                  value={editFields.description}
+                  onChange={(e) => setEditFields(prev => ({ ...prev, description: e.target.value }))}
                   className="w-full px-4 py-3 bg-bg-dark border border-[#333] rounded-lg text-white focus:border-orange focus:outline-none"
                   rows={4}
                 />
@@ -301,13 +307,25 @@ export default function CampaignsPage({ onNavigate }: CampaignsPageProps) {
             <div className="flex gap-4">
               <Button
                 variant="primary"
-                onClick={() => {
-                  alert('Fonctionnalité de modification à implémenter');
-                  setShowEditModal(false);
+                disabled={editSaving}
+                onClick={async () => {
+                  setEditSaving(true);
+                  const result = await updateCampaign(selectedCampaign.id, {
+                    stock: editFields.stock,
+                    currentPrice: editFields.currentPrice,
+                    description: editFields.description,
+                  });
+                  setEditSaving(false);
+                  if (result.success) {
+                    setShowEditModal(false);
+                    loadCampaigns();
+                  } else {
+                    alert('Erreur: ' + result.error);
+                  }
                 }}
                 className="flex-1"
               >
-                Sauvegarder
+                {editSaving ? 'Sauvegarde...' : 'Sauvegarder'}
               </Button>
               <Button
                 variant="secondary"

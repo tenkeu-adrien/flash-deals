@@ -18,6 +18,7 @@ export default function FinancesPage({ onNavigate }: FinancesPageProps) {
   const [period, setPeriod] = useState('month');
   const [healthStatus, setHealthStatus] = useState<'idle' | 'checking' | 'ok' | 'error'>('idle');
   const [healthMessage, setHealthMessage] = useState<string>('');
+  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
 
   useEffect(() => {
     loadFinances();
@@ -284,7 +285,7 @@ export default function FinancesPage({ onNavigate }: FinancesPageProps) {
                           {getStatusBadge(transaction.paymentStatus || 'pending')}
                         </td>
                         <td className="px-4 py-4">
-                          <Button variant="secondary" size="small">Détails</Button>
+                          <Button variant="secondary" size="small" onClick={() => setSelectedTransaction(transaction)}>Détails</Button>
                         </td>
                       </motion.tr>
                     ))}
@@ -322,6 +323,52 @@ export default function FinancesPage({ onNavigate }: FinancesPageProps) {
           </div>
         </div>
       </div>
+
+      {/* Modal Détails Transaction */}
+      {selectedTransaction && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-bg-medium rounded-xl p-6 max-w-lg w-full"
+          >
+            <h2 className="text-xl font-bold mb-4">Transaction #{(selectedTransaction.id || '').substring(0, 8)}</h2>
+            <div className="space-y-3 text-sm mb-6">
+              <div className="flex justify-between">
+                <span className="text-gray-medium">Client ID</span>
+                <span>{selectedTransaction.userId || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-medium">Montant</span>
+                <span className="font-bold text-orange">{(selectedTransaction.totalPrice || 0).toLocaleString()} FCFA</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-medium">Méthode</span>
+                <span>{selectedTransaction.paymentMethod || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-medium">Statut paiement</span>
+                {getStatusBadge(selectedTransaction.paymentStatus || 'pending')}
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-medium">Statut commande</span>
+                <span>{selectedTransaction.status || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-medium">Quantité</span>
+                <span>{selectedTransaction.quantity || 1}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-medium">Date</span>
+                <span>{selectedTransaction.createdAt?.toDate?.()?.toLocaleString('fr-FR') || 'N/A'}</span>
+              </div>
+            </div>
+            <Button variant="secondary" className="w-full" onClick={() => setSelectedTransaction(null)}>
+              Fermer
+            </Button>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

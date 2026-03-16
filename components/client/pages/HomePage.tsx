@@ -89,13 +89,6 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             <p style={{ color: '#666', marginBottom: '20px' }}>
               Les deals flash arrivent bientôt!
             </p>
-            <a 
-              href="/seed" 
-              className="btn btn-primary"
-              style={{ textDecoration: 'none' }}
-            >
-              🌱 Ajouter des données de test
-            </a>
           </div>
         ) : (
           <>

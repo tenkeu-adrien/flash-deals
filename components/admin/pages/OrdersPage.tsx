@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import AdminSidebar from '@/components/admin/Sidebar';
 import Button from '@/components/ui/Button';
-import { getAllOrders, Order } from '@/lib/firebase/firestore';
+import { Order } from '@/lib/firebase/firestore';
+import { getAllOrders } from '@/lib/firebase/firestore-admin';
 
 interface OrdersPageProps {
   onNavigate: (page: string) => void;
@@ -13,6 +14,7 @@ interface OrdersPageProps {
 export default function OrdersPage({ onNavigate }: OrdersPageProps) {
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -135,7 +137,7 @@ export default function OrdersPage({ onNavigate }: OrdersPageProps) {
                           {created?.toLocaleDateString('fr-FR') || 'N/A'}
                         </td>
                         <td className="px-4 py-4">
-                          <Button variant="secondary" size="small">
+                          <Button variant="secondary" size="small" onClick={() => setSelectedOrder(order)}>
                             Détails
                           </Button>
                         </td>
@@ -148,6 +150,62 @@ export default function OrdersPage({ onNavigate }: OrdersPageProps) {
           )}
         </div>
       </div>
+
+      {/* Modal Détails Commande */}
+      {selectedOrder && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-bg-medium rounded-xl p-6 max-w-lg w-full"
+          >
+            <h2 className="text-xl font-bold mb-4">Commande #{(selectedOrder.id || '').substring(0, 8)}</h2>
+            <div className="space-y-3 text-sm mb-6">
+              <div className="flex justify-between">
+                <span className="text-gray-medium">Client ID</span>
+                <span>{selectedOrder.userId || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-medium">Vendeur ID</span>
+                <span>{selectedOrder.vendorId || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-medium">Montant</span>
+                <span className="font-bold text-orange">{(selectedOrder.totalPrice || 0).toLocaleString()} XAF</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-medium">Statut</span>
+                {getStatusBadge(selectedOrder.status || 'pending')}
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-medium">Paiement</span>
+                <span>{selectedOrder.paymentStatus || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-medium">Méthode</span>
+                <span>{selectedOrder.paymentMethod || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-medium">Quantité</span>
+                <span>{selectedOrder.quantity || 1}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-medium">Date</span>
+                <span>{((selectedOrder.createdAt as any)?.toDate?.() || new Date(selectedOrder.createdAt))?.toLocaleString('fr-FR') || 'N/A'}</span>
+              </div>
+              {selectedOrder.deliveryAddress && (
+                <div className="flex justify-between">
+                  <span className="text-gray-medium">Adresse</span>
+                  <span className="text-right max-w-[200px]">{typeof selectedOrder.deliveryAddress === 'string' ? selectedOrder.deliveryAddress : JSON.stringify(selectedOrder.deliveryAddress)}</span>
+                </div>
+              )}
+            </div>
+            <Button variant="secondary" className="w-full" onClick={() => setSelectedOrder(null)}>
+              Fermer
+            </Button>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

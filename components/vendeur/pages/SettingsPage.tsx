@@ -18,6 +18,7 @@ export default function SettingsPage({ onNavigate }: SettingsPageProps) {
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [vendorStats, setVendorStats] = useState({ campaigns: 0, sales: 0, revenue: 0, rating: 0 });
   const [profile, setProfile] = useState({
     businessName: '',
     email: '',
@@ -43,6 +44,17 @@ export default function SettingsPage({ onNavigate }: SettingsPageProps) {
         description: result.vendor.description || '',
         logo: result.vendor.logo || ''
       });
+    }
+    // Load campaigns for stats
+    const { getVendorCampaigns } = await import('@/lib/firebase/firestore');
+    const campsResult = await getVendorCampaigns();
+    if (campsResult.success && campsResult.campaigns) {
+      const camps = campsResult.campaigns;
+      const totalSales = camps.reduce((s, c) => s + (c.sold || 0), 0);
+      const totalRevenue = camps.reduce((s, c) => s + (c.sold || 0) * (c.currentPrice || 0) * 0.85, 0);
+      const ratings = camps.filter(c => c.averageRating).map(c => c.averageRating as number);
+      const avgRating = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
+      setVendorStats({ campaigns: camps.length, sales: totalSales, revenue: totalRevenue, rating: avgRating });
     }
     setLoading(false);
   };
@@ -247,19 +259,19 @@ export default function SettingsPage({ onNavigate }: SettingsPageProps) {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="p-4 bg-bg-dark rounded-lg">
                         <div className="text-sm text-gray-medium mb-1">Campagnes créées</div>
-                        <div className="text-2xl font-bold">0</div>
+                        <div className="text-2xl font-bold">{vendorStats.campaigns}</div>
                       </div>
                       <div className="p-4 bg-bg-dark rounded-lg">
                         <div className="text-sm text-gray-medium mb-1">Ventes totales</div>
-                        <div className="text-2xl font-bold">0</div>
+                        <div className="text-2xl font-bold">{vendorStats.sales}</div>
                       </div>
                       <div className="p-4 bg-bg-dark rounded-lg">
                         <div className="text-sm text-gray-medium mb-1">Revenus</div>
-                        <div className="text-2xl font-bold text-orange">0 FCFA</div>
+                        <div className="text-2xl font-bold text-orange">{vendorStats.revenue.toLocaleString()} FCFA</div>
                       </div>
                       <div className="p-4 bg-bg-dark rounded-lg">
                         <div className="text-sm text-gray-medium mb-1">Note moyenne</div>
-                        <div className="text-2xl font-bold text-green">0.0 ⭐</div>
+                        <div className="text-2xl font-bold text-green">{vendorStats.rating.toFixed(1)} ⭐</div>
                       </div>
                     </div>
                   </div>

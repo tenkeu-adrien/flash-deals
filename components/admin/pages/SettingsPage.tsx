@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import AdminSidebar from '@/components/admin/Sidebar';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { Settings, Bell, Shield, DollarSign, Mail, Globe, Save } from 'lucide-react';
+import { getFirebaseDb } from '@/lib/firebase/config';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 interface SettingsPageProps {
   onNavigate: (page: string) => void;
@@ -38,6 +40,19 @@ export default function SettingsPage({ onNavigate }: SettingsPageProps) {
     requirePhoneVerification: false
   });
 
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const db = getFirebaseDb();
+        const snap = await getDoc(doc(db, 'settings', 'platform'));
+        if (snap.exists()) {
+          setSettings(prev => ({ ...prev, ...snap.data() }));
+        }
+      } catch {}
+    };
+    loadSettings();
+  }, []);
+
   const tabs = [
     { id: 'general', label: 'Général', icon: Settings },
     { id: 'finances', label: 'Finances', icon: DollarSign },
@@ -49,10 +64,14 @@ export default function SettingsPage({ onNavigate }: SettingsPageProps) {
 
   const handleSave = async () => {
     setSaving(true);
-    // Simuler la sauvegarde
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      const db = getFirebaseDb();
+      await setDoc(doc(db, 'settings', 'platform'), { ...settings, updatedAt: serverTimestamp() }, { merge: true });
+      alert('Paramètres sauvegardés avec succès!');
+    } catch (e: any) {
+      alert('Erreur: ' + e.message);
+    }
     setSaving(false);
-    alert('Paramètres sauvegardés avec succès!');
   };
 
   const handleChange = (field: string, value: any) => {

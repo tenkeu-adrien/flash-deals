@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import AdminSidebar from '@/components/admin/Sidebar';
 import { Search, Bell } from 'lucide-react';
-import { getGlobalStats, checkFirebaseHealth } from '@/lib/firebase/firestore';
+import { getGlobalStats, checkFirebaseHealth, getAllOrders } from '@/lib/firebase/firestore-admin';
 
 interface DashboardPageProps {
   onNavigate: (page: string) => void;
@@ -37,7 +37,6 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
 
   const loadRecentActivity = async () => {
     try {
-      const { getAllOrders } = await import('@/lib/firebase/firestore');
       const result = await getAllOrders();
       if (result.success && result.orders) {
         setRecentOrders(result.orders.slice(0, 5));
@@ -137,9 +136,11 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
             </button>
             <button className="relative p-2 hover:bg-bg-card rounded-full transition-colors">
               <Bell size={20} />
-              <span className="absolute top-1 right-1 bg-red text-white rounded-full w-5 h-5 text-[10px] flex items-center justify-center font-bold">
-                5
-              </span>
+              {stats && stats.pendingOrders > 0 && (
+                <span className="absolute top-1 right-1 bg-red text-white rounded-full w-5 h-5 text-[10px] flex items-center justify-center font-bold">
+                  {stats.pendingOrders > 99 ? '99+' : stats.pendingOrders}
+                </span>
+              )}
             </button>
           </div>
         </header>

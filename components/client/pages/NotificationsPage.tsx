@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Bell, Package, Tag, AlertCircle, CheckCircle, X } from 'lucide-react';
 import Button from '@/components/ui/Button';
+import { getFirebaseDb, Collections } from '@/lib/firebase/config';
+import { getFirebaseAuth } from '@/lib/firebase/config';
+import { collection, query, where, orderBy, getDocs, updateDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 
 interface NotificationsPageProps {
   onNavigate: (page: string) => void;
@@ -21,90 +24,100 @@ interface Notification {
 }
 
 export default function NotificationsPage({ onNavigate }: NotificationsPageProps) {
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      type: 'order',
-      title: 'Commande expédiée',
-      message: 'Votre commande #12345 a été expédiée et arrivera dans 24-48h',
-      time: 'Il y a 2h',
-      read: false,
-      actionLabel: 'Voir la commande',
-      actionPage: 'profile'
-    },
-    {
-      id: '2',
-      type: 'deal',
-      title: 'Nouveau deal disponible',
-      message: 'iPhone 15 Pro Max à -60% pendant 24h seulement!',
-      time: 'Il y a 5h',
-      read: false,
-      actionLabel: 'Voir le deal',
-      actionPage: 'dashboard'
-    },
-    {
-      id: '3',
-      type: 'success',
-      title: 'Paiement confirmé',
-      message: 'Votre paiement de 450,000 FCFA a été confirmé avec succès',
-      time: 'Hier',
-      read: true
-    },
-    {
-      id: '4',
-      type: 'info',
-      title: 'Profil complété',
-      message: 'Félicitations! Votre profil est maintenant complet',
-      time: 'Il y a 2 jours',
-      read: true
-    },
-    {
-      id: '5',
-      type: 'warning',
-      title: 'Stock limité',
-      message: 'Plus que 3 unités disponibles pour le produit dans votre panier',
-      time: 'Il y a 3 jours',
-      read: true,
-      actionLabel: 'Voir le panier',
-      actionPage: 'cart'
-    }
-  ]);
-
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
+  const loadNotifications = async () => {
+    setLoading(true);
+    try {
+      const auth = getFirebaseAuth();
+      const user = auth.currentUser;
+      if (!user) { setLoading(false); return; }
+
+      const db = getFirebaseDb();
+      let snap;
+      try {
+        const q = query(
+          collection(db, Collections.NOTIFICATIONS),
+          where('userId', '==', user.uid),
+          orderBy('createdAt', 'desc')
+        );
+        snap = await getDocs(q);
+      } catch {
+        const q = query(collection(db, Collections.NOTIFICATIONS), where('userId', '==', user.uid));
+        snap = await getDocs(q);
+      }
+
+      const data: Notification[] = [];
+      snap.forEach((d) => {
+        const n = d.data();
+        const createdAt = n.createdAt?.toDate?.() || new Date();
+        const diffMs = Date.now() - createdAt.getTime();
+        const diffH = Math.floor(diffMs / 3600000);
+        const diffD = Math.floor(diffMs / 86400000);
+        const time = diffH < 1 ? 'À l\'instant' : diffH < 24 ? `Il y a ${diffH}h` : diffD === 1 ? 'Hier' : `Il y a ${diffD} jours`;
+        data.push({
+          id: d.id,
+          type: n.type || 'info',
+          title: n.title || '',
+          message: n.message || '',
+          time,
+          read: n.read || false,
+          actionLabel: n.actionLabel,
+          actionPage: n.actionPage,
+        });
+      });
+      setNotifications(data);
+    } catch (e) {
+      console.error('Erreur chargement notifications:', e);
+    }
+    setLoading(false);
+  };
 
   const getIcon = (type: string) => {
     switch (type) {
-      case 'order':
-        return <Package size={20} className="text-blue-500" />;
-      case 'deal':
-        return <Tag size={20} className="text-orange" />;
-      case 'success':
-        return <CheckCircle size={20} className="text-green" />;
-      case 'warning':
-        return <AlertCircle size={20} className="text-yellow-500" />;
-      default:
-        return <Bell size={20} className="text-gray-medium" />;
+      case 'order': return <Package size={20} className="text-blue-500" />;
+      case 'deal': return <Tag size={20} className="text-orange" />;
+      case 'success': return <CheckCircle size={20} className="text-green" />;
+      case 'warning': return <AlertCircle size={20} className="text-yellow-500" />;
+      default: return <Bell size={20} className="text-gray-medium" />;
     }
   };
 
-  const markAsRead = (id: string) => {
-    setNotifications(notifications.map(notif =>
-      notif.id === id ? { ...notif, read: true } : notif
-    ));
+  const markAsRead = async (id: string) => {
+    try {
+      const db = getFirebaseDb();
+      await updateDoc(doc(db, Collections.NOTIFICATIONS, id), { read: true });
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    } catch {}
   };
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(notif => ({ ...notif, read: true })));
+  const markAllAsRead = async () => {
+    try {
+      const db = getFirebaseDb();
+      const batch = writeBatch(db);
+      notifications.filter(n => !n.read).forEach(n => {
+        batch.update(doc(db, Collections.NOTIFICATIONS, n.id), { read: true });
+      });
+      await batch.commit();
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    } catch {}
   };
 
-  const deleteNotification = (id: string) => {
-    setNotifications(notifications.filter(notif => notif.id !== id));
+  const deleteNotification = async (id: string) => {
+    try {
+      const db = getFirebaseDb();
+      await deleteDoc(doc(db, Collections.NOTIFICATIONS, id));
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    } catch {}
   };
 
-  const filteredNotifications = filter === 'unread'
-    ? notifications.filter(n => !n.read)
-    : notifications;
-
+  const filteredNotifications = filter === 'unread' ? notifications.filter(n => !n.read) : notifications;
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
@@ -139,7 +152,7 @@ export default function NotificationsPage({ onNavigate }: NotificationsPageProps
               Notifications
             </h1>
             <p style={{ fontSize: '14px', color: 'var(--color-gray-medium)' }}>
-              {unreadCount} non lue{unreadCount > 1 ? 's' : ''}
+              {loading ? 'Chargement...' : `${unreadCount} non lue${unreadCount > 1 ? 's' : ''}`}
             </p>
           </div>
           {unreadCount > 0 && (

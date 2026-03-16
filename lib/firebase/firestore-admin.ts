@@ -5,6 +5,7 @@
 import {
   collection,
   getDocs,
+  getDoc,
   query,
   where,
   orderBy,
@@ -155,6 +156,127 @@ export async function reactivateCampaign(campaignId: string): Promise<{ success:
     return { success: true };
   } catch (error: any) {
     console.error('❌ Erreur réactivation campagne:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ============================================
+// STATISTIQUES GLOBALES (ADMIN DASHBOARD)
+// ============================================
+
+/**
+ * Obtenir toutes les commandes (admin)
+ */
+export async function getAllOrders(limitCount = 200): Promise<{ success: boolean; orders?: any[]; error?: string }> {
+  try {
+    const db = getFirebaseDb();
+    const q = query(
+      collection(db, 'orders'),
+      orderBy('createdAt', 'desc'),
+      limit(limitCount)
+    );
+
+    const snapshot = await getDocs(q);
+    const orders: any[] = [];
+
+    snapshot.forEach((docSnap) => {
+      orders.push({ id: docSnap.id, ...docSnap.data() });
+    });
+
+    return { success: true, orders };
+  } catch (error: any) {
+    // Fallback sans orderBy si index manquant
+    try {
+      const db = getFirebaseDb();
+      const snapshot = await getDocs(query(collection(db, 'orders'), limit(limitCount)));
+      const orders: any[] = [];
+      snapshot.forEach((docSnap) => {
+        orders.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      return { success: true, orders };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+}
+
+/**
+ * Obtenir les statistiques globales de la plateforme
+ */
+export async function getGlobalStats(): Promise<{ success: boolean; stats?: any; error?: string }> {
+  try {
+    const db = getFirebaseDb();
+
+    // Récupérer en parallèle
+    const [campaignsSnap, vendorsSnap, ordersSnap, usersSnap] = await Promise.all([
+      getDocs(collection(db, 'campaigns')),
+      getDocs(collection(db, 'vendors')),
+      getDocs(collection(db, 'orders')),
+      getDocs(collection(db, 'users')),
+    ]);
+
+    let totalRevenue = 0;
+    let deliveredOrders = 0;
+    let pendingOrders = 0;
+    let activeCampaigns = 0;
+    let pendingCampaigns = 0;
+    let activeVendors = 0;
+    let pendingVendors = 0;
+
+    ordersSnap.forEach((d) => {
+      const o = d.data();
+      totalRevenue += o.totalPrice || 0;
+      if (o.status === 'delivered') deliveredOrders++;
+      if (o.status === 'pending' || o.status === 'pending_validation') pendingOrders++;
+    });
+
+    campaignsSnap.forEach((d) => {
+      const c = d.data();
+      if (c.status === 'active') activeCampaigns++;
+      if (c.status === 'pending') pendingCampaigns++;
+    });
+
+    vendorsSnap.forEach((d) => {
+      const v = d.data();
+      if (v.status === 'active') activeVendors++;
+      if (v.status === 'pending') pendingVendors++;
+    });
+
+    const stats = {
+      totalUsers: usersSnap.size,
+      totalVendors: vendorsSnap.size,
+      activeVendors,
+      pendingVendors,
+      totalCampaigns: campaignsSnap.size,
+      activeCampaigns,
+      pendingCampaigns,
+      totalOrders: ordersSnap.size,
+      deliveredOrders,
+      pendingOrders,
+      totalRevenue,
+    };
+
+    return { success: true, stats };
+  } catch (error: any) {
+    console.error('Erreur getGlobalStats:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Vérifier la santé de la connexion Firebase
+ */
+export async function checkFirebaseHealth(): Promise<{ success: boolean; message?: string; error?: string }> {
+  try {
+    const db = getFirebaseDb();
+    // Lecture d'un document léger pour tester la connexion
+    await getDoc(doc(db, 'settings', 'health'));
+    return { success: true, message: 'Firebase connecté et opérationnel' };
+  } catch (error: any) {
+    // Une erreur "not-found" signifie quand même que Firebase répond
+    if (error.code === 'not-found' || error.message?.includes('No document')) {
+      return { success: true, message: 'Firebase connecté et opérationnel' };
+    }
     return { success: false, error: error.message };
   }
 }
