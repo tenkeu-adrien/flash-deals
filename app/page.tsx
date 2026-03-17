@@ -11,18 +11,18 @@ export default function Home() {
       title: 'Interface Client',
       description: 'Découvrez des deals à prix cassés avec des réductions jusqu\'à -70%. Achetez vos produits préférés en quelques clics.',
     },
-    {
-      href: '/vendeur',
-      icon: '🏪',
-      title: 'Interface Vendeur',
-      description: 'Créez des campagnes flash pour écouler vos stocks rapidement. Boostez vos ventes en 24-48h.',
-    },
-    {
-      href: '/admin',
-      icon: '🔐',
-      title: 'Interface Admin',
-      description: 'Gérez la plateforme, modérez les campagnes et suivez les performances en temps réel.',
-    },
+    // {
+    //   href: '/vendeur',
+    //   icon: '🏪',
+    //   title: 'Interface Vendeur',
+    //   description: 'Créez des campagnes flash pour écouler vos stocks rapidement. Boostez vos ventes en 24-48h.',
+    // },
+    // {
+    //   href: '/admin',
+    //   icon: '🔐',
+    //   title: 'Interface Admin',
+    //   description: 'Gérez la plateforme, modérez les campagnes et suivez les performances en temps réel.',
+    // },
   ];
 
   const features = [
@@ -48,13 +48,13 @@ export default function Home() {
           <h1 className="text-5xl mb-4 bg-gradient-to-r from-orange to-red bg-clip-text text-transparent font-bold">
             Flash Deals Cameroun
           </h1>
-          <p className="text-xl text-gray-medium  ">
+          <p className="text-xl text-gray-medium  mb-2  ">
             Plateforme E-commerce de Deals Flash
           </p>
         </motion.div>
 
         {/* Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-15">
+        <div className="flex justify-center mb-2  ">
           {cards.map((card, index) => (
             <motion.div
               key={card.href}
@@ -74,7 +74,7 @@ export default function Home() {
                   </p>
                   <motion.div
                     whileHover={{ scale: 1.05 }}
-                    className="inline-block bg-orange text-white px-8 py-3.5 rounded-lg font-semibold text-base"
+                    className="inline-block bg-orange text-white px-8 py-3.5 rounded-lg font-semibold text-base "
                   >
                     Accéder →
                   </motion.div>
