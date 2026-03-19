@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat - Prévisualisation</title>
+    <style>
+        .chat-wrapper{
+            max-width:420px;
+            margin:auto;
+            height:600px;
+            display:flex;
+            flex-direction:column;
+            border-radius:18px;
+            overflow:hidden;
+            box-shadow:0 10px 30px rgba(0,0,0,0.12);
+            background:#fff;
+        }
+
+        .chat-header{
+            padding:15px;
+            background:#0d6efd;
+            color:white;
+            font-weight:bold;
+        }
+
+        .chat-body{
+            flex:1;
+            padding:15px;
+            overflow-y:auto;
+            background:#f5f7fb;
+        }
+
+        .message{
+            max-width:75%;
+            margin-bottom:12px;
+            padding:10px 14px;
+            border-radius:16px;
+            font-size:14px;
+        }
+
+        .client{
+            background:#0d6efd;
+            color:white;
+            margin-left:auto;
+        }
+
+        .prestataire{
+            background:white;
+            border:1px solid #ddd;
+        }
+
+        .chat-footer{
+            display:flex;
+            border-top:1px solid #eee;
+        }
+
+        .chat-footer input{
+            flex:1;
+            border:none;
+            padding:14px;
+            outline:none;
+        }
+
+        .chat-footer button{
+            border:none;
+            background:#0d6efd;
+            color:white;
+            padding:0 20px;
+            cursor:pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-wrapper">
+
+        <input type="hidden" id="prestataire-id-field" value="1">
+
+        <div class="chat-header">
+            <h3>Messagerie directe</h3>
+        </div>
+
+        <div id="chat-conversation-area" class="chat-body"></div>
+
+        <form id="chat-form" class="chat-footer">
+            <input 
+                type="text" 
+                id="chat-message-input" 
+                placeholder="Écrire un message..."
+                autocomplete="off"
+            >
+            <button type="submit">Envoyer</button>
+        </form>
+
+    </div>
+
+    <script>
+        function getOrCreateDeviceId() {
+            let deviceId = localStorage.getItem('maforbis_device_id');
+
+            if (!deviceId) {
+                deviceId = crypto.randomUUID();
+                localStorage.setItem('maforbis_device_id', deviceId);
+            }
+
+            return deviceId;
+        }
+
+        const prestataireId = document.getElementById('prestataire-id-field').value;
+        const chatForm = document.getElementById('chat-form');
+        const messageInput = document.getElementById('chat-message-input');
+        const conversationArea = document.getElementById('chat-conversation-area');
+
+        async function loadConversation() {
+            const deviceId = getOrCreateDeviceId();
+
+            try {
+                const response = await fetch(`/api/chat/conversation/${prestataireId}?device_id=${deviceId}`);
+                const data = await response.json();
+
+                conversationArea.innerHTML = '';
+
+                data.messages.forEach(msg => {
+                    appendMessage(msg.message, msg.sender_type);
+                });
+
+                scrollBottom();
+            } catch (e) {
+                // Pas d'API - prévisualisation statique
+            }
+        }
+
+        function appendMessage(text, sender) {
+            const div = document.createElement('div');
+            div.classList.add('message');
+            div.classList.add(sender);
+
+            div.textContent = text;
+            conversationArea.appendChild(div);
+        }
+
+        async function sendMessage(message) {
+            const deviceId = getOrCreateDeviceId();
+
+            try {
+                const response = await fetch('/api/chat/message', {
+                    method:'POST',
+                    headers:{
+                        'Content-Type':'application/json',
+                        'Accept':'application/json'
+                    },
+                    body:JSON.stringify({
+                        device_id:deviceId,
+                        prestataire_id:prestataireId,
+                        message:message
+                    })
+                });
+
+                const data = await response.json();
+            } catch (e) {
+                // Pas d'API - affichage local uniquement
+            }
+
+            appendMessage(message,'client');
+            scrollBottom();
+        }
+
+        function scrollBottom() {
+            conversationArea.scrollTop = conversationArea.scrollHeight;
+        }
+
+        chatForm.addEventListener('submit', async (e)=> {
+            e.preventDefault();
+
+            const message = messageInput.value.trim();
+
+            if(message){
+                await sendMessage(message);
+                messageInput.value='';
+            }
+        });
+
+        setInterval(loadConversation,3000);
+
+        loadConversation();
+    </script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { seedAllTestData, seedTestCampaigns, seedTestVendors, seedTestUsers } from '@/lib/firebase/seedTestData';
+import { seedAllTestData, seedTestCampaigns, seedTestVendors, seedTestUsers, seedFreshDeals } from '@/lib/firebase/seedTestData';
 
 export default function SeedPage() {
   const [loading, setLoading] = useState(false);
@@ -61,6 +61,21 @@ export default function SeedPage() {
     try {
       const res = await seedTestUsers();
       setResults({ users: res });
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSeedFreshDeals = async () => {
+    setLoading(true);
+    setError('');
+    setResults(null);
+
+    try {
+      const res = await seedFreshDeals();
+      setResults({ freshDeals: res });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -188,6 +203,25 @@ export default function SeedPage() {
             }}
           >
             👥 Utilisateurs
+          </button>
+
+          <button
+            onClick={handleSeedFreshDeals}
+            disabled={loading}
+            style={{
+              padding: '16px',
+              backgroundColor: '#1a1a1a',
+              color: 'white',
+              border: '1px solid #FF3D00',
+              borderRadius: '12px',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.5 : 1,
+              gridColumn: 'span 2'
+            }}
+          >
+            🔥 Fresh Deals (20) — 5 jours
           </button>
         </div>
 
