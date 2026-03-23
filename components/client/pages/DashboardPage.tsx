@@ -90,6 +90,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
                 badge={campaign.sold > campaign.stock * 0.5 ? 'POPULAIRE' : 'NOUVEAU'}
                 endDate={campaign.endDate}
                 icon="📦"
+                image={campaign.images?.[0]}
                 title={campaign.title}
                 rating={`⭐⭐⭐⭐⭐ ${campaign.averageRating || 4.8}/5 (${campaign.reviewCount || 0} avis)`}
                 originalPrice={campaign.originalPrice}

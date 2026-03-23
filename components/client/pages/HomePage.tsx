@@ -98,7 +98,8 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                 id={campaigns[0].id!}
                 badge="NOUVEAU"
                 endDate={campaigns[0].endDate}
-                icon={campaigns[0].images?.[0] ? '🖼️' : '📱'}
+                icon="📱"
+                image={campaigns[0].images?.[0]}
                 title={campaigns[0].title}
                 rating={`⭐⭐⭐⭐⭐ ${campaigns[0].averageRating || 4.8}/5 (${campaigns[0].reviewCount || 0} avis)`}
                 originalPrice={campaigns[0].originalPrice}
@@ -129,6 +130,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                 badge={campaign.sold > campaign.stock * 0.5 ? 'POPULAIRE' : 'NOUVEAU'}
                 endDate={campaign.endDate}
                 icon="📦"
+                image={campaign.images?.[0]}
                 title={campaign.title}
                 rating={`⭐⭐⭐⭐⭐ ${campaign.averageRating || 4.8}/5 (${campaign.reviewCount || 0} avis)`}
                 originalPrice={campaign.originalPrice}

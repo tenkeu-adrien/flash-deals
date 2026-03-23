@@ -9,6 +9,7 @@ interface DealCardProps {
   badge?: string;
   endDate: Date | string | any; // Date de fin pour le chronomètre
   icon: string;
+  image?: string; // URL de l'image du produit
   title: string;
   rating: string;
   originalPrice: number;
@@ -27,6 +28,7 @@ export default function DealCard({
   badge,
   endDate,
   icon,
+  image,
   title,
   rating,
   originalPrice,
@@ -130,9 +132,18 @@ export default function DealCard({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '48px'
+          fontSize: '48px',
+          overflow: 'hidden'
         }}>
-          {icon}
+          {image ? (
+            <img
+              src={image}
+              alt={title}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : (
+            icon
+          )}
         </div>
       </div>
       
