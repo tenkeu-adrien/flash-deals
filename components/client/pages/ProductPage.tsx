@@ -286,18 +286,31 @@ export default function ProductPage({ onNavigate }: ProductPageProps) {
           width: '100%',
           height: '320px',
           position: 'relative',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          backgroundColor: '#1a1a1a'
         }}>
           {campaign.images && campaign.images.length > 0 ? (
             <>
+              {/* Images */}
               <div style={{
-                width: '100%',
+                display: 'flex',
+                width: `${campaign.images.length * 100}%`,
                 height: '100%',
-                background: `url(${campaign.images[currentImageIndex]}) center/cover`,
-                transition: 'background 0.3s ease'
-              }} />
-              
-              {/* Contrôles du slider */}
+                transform: `translateX(-${currentImageIndex * (100 / campaign.images.length)}%)`,
+                transition: 'transform 0.35s ease'
+              }}>
+                {campaign.images.map((img, i) => (
+                  <div key={i} style={{ width: `${100 / campaign.images!.length}%`, height: '100%', flexShrink: 0 }}>
+                    <img
+                      src={img}
+                      alt={`${campaign.title} ${i + 1}`}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Flèches */}
               {campaign.images.length > 1 && (
                 <>
                   <button
@@ -307,22 +320,22 @@ export default function ProductPage({ onNavigate }: ProductPageProps) {
                       left: '12px',
                       top: '50%',
                       transform: 'translateY(-50%)',
-                      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                      backgroundColor: 'rgba(0,0,0,0.6)',
                       color: 'white',
                       border: 'none',
                       width: '40px',
                       height: '40px',
                       borderRadius: '50%',
                       cursor: 'pointer',
-                      fontSize: '20px',
+                      fontSize: '18px',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center'
+                      justifyContent: 'center',
+                      zIndex: 5
                     }}
                   >
-                    ←
+                    ‹
                   </button>
-                  
                   <button
                     onClick={() => setCurrentImageIndex((prev) => prev === campaign.images!.length - 1 ? 0 : prev + 1)}
                     style={{
@@ -330,43 +343,46 @@ export default function ProductPage({ onNavigate }: ProductPageProps) {
                       right: '12px',
                       top: '50%',
                       transform: 'translateY(-50%)',
-                      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                      backgroundColor: 'rgba(0,0,0,0.6)',
                       color: 'white',
                       border: 'none',
                       width: '40px',
                       height: '40px',
                       borderRadius: '50%',
                       cursor: 'pointer',
-                      fontSize: '20px',
+                      fontSize: '18px',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center'
+                      justifyContent: 'center',
+                      zIndex: 5
                     }}
                   >
-                    →
+                    ›
                   </button>
-                  
-                  {/* Indicateurs de position */}
+
+                  {/* Dots */}
                   <div style={{
                     position: 'absolute',
                     bottom: '12px',
                     left: '50%',
                     transform: 'translateX(-50%)',
                     display: 'flex',
-                    gap: '8px'
+                    gap: '6px',
+                    zIndex: 5
                   }}>
                     {campaign.images.map((_, index) => (
                       <button
                         key={index}
                         onClick={() => setCurrentImageIndex(index)}
                         style={{
-                          width: '8px',
+                          width: index === currentImageIndex ? '20px' : '8px',
                           height: '8px',
-                          borderRadius: '50%',
-                          backgroundColor: index === currentImageIndex ? 'var(--color-orange)' : 'rgba(255, 255, 255, 0.5)',
+                          borderRadius: '4px',
+                          backgroundColor: index === currentImageIndex ? 'var(--color-orange)' : 'rgba(255,255,255,0.5)',
                           border: 'none',
                           cursor: 'pointer',
-                          padding: 0
+                          padding: 0,
+                          transition: 'all 0.2s ease'
                         }}
                       />
                     ))}
