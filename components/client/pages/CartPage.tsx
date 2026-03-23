@@ -195,17 +195,24 @@ export default function CartPage({ onNavigate }: CartPageProps) {
                     borderRadius: '8px',
                     background: '#2a2a2a',
                     flexShrink: 0,
+                    overflow: 'hidden',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: '32px'
                   }}>
-                    📦
+                    {item.campaign?.images?.[0] ? (
+                      <img
+                        src={item.campaign.images[0]}
+                        alt={item.campaign.title}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : '📦'}
                   </div>
 
                   <div style={{ flex: 1 }}>
                     <h3 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>
-                      Produit #{item.campaignId}
+                      {item.campaign?.title || `Produit #${item.campaignId}`}
                     </h3>
                     <div style={{
                       fontSize: '18px',
